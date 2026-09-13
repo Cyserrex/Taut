@@ -152,6 +152,26 @@
     return element.muted;
   }
 
+  /**
+   * Apakah lagunya sedang berputar.
+   *
+   * TIDAK memakai element.paused sebagai sumber utama. Di tab yang sudah lama
+   * terbuka, elemen <video> dan pemutar YouTube bisa tidak lagi sejalan —
+   * pernah terlihat playerState=2 (jeda) sementara element.paused=false. Kalau
+   * yang dibaca elemennya, remote melaporkan "sedang berputar" terus-menerus
+   * dan tombol jeda seolah tidak berfungsi.
+   *
+   * getPlayerState() adalah anggapan YouTube Music sendiri, yang sama dengan
+   * yang ditampilkan tombolnya: 1 berputar, 3 sedang memuat.
+   */
+  function readPlaying(element) {
+    const state = playerApi()?.getPlayerState?.();
+    if (typeof state === 'number' && Number.isFinite(state)) {
+      return state === 1 || state === 3;
+    }
+    return !element.paused && !element.ended;
+  }
+
   function readState() {
     const element = video();
     if (!element) return null;
@@ -163,7 +183,7 @@
       title: metadata.title,
       artist: metadata.artist,
       artwork: metadata.artwork,
-      playing: !element.paused && !element.ended,
+      playing: readPlaying(element),
       position: Number.isFinite(element.currentTime) ? element.currentTime : 0,
       duration: Number.isFinite(element.duration) ? element.duration : 0,
       volume: readVolume(element),
@@ -186,17 +206,25 @@
 
   const actions = {
     playPause() {
+      // Tombol asli YouTube lebih dulu, dan itu memang yang paling benar:
+      // menekannya menggerakkan mesin keadaan YouTube Music sendiri, sehingga
+      // elemen <video>, pemutar, dan tampilan halaman ikut selaras. Memanggil
+      // pauseVideo() saja pernah gagal di tab yang keduanya sudah tidak
+      // sejalan — pemutarnya berhenti, tapi suaranya jalan terus.
+      if (clickButton(['#play-pause-button', '.play-pause-button'])) return;
+
       const element = video();
       if (!element) return;
-      // Lewat API pemutar agar YouTube ikut memperbarui tampilannya sendiri.
+
       const api = playerApi();
-      if (element.paused) {
-        if (api?.playVideo) api.playVideo();
-        else element.play();
-      } else if (api?.pauseVideo) {
-        api.pauseVideo();
+      const playing = readPlaying(element);
+      if (playing) {
+        if (api?.pauseVideo) api.pauseVideo();
+        else element.pause();
+      } else if (api?.playVideo) {
+        api.playVideo();
       } else {
-        element.pause();
+        element.play();
       }
     },
 

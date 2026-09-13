@@ -29,7 +29,10 @@ const SOURCE = fs.readFileSync(path.join(__dirname, '..', 'extension', 'page.js'
  * dengan suntikan pertama.
  */
 function createPage() {
-  const calls = { nextVideo: 0, previousVideo: 0, playVideo: 0, pauseVideo: 0 };
+  const calls = { nextVideo: 0, previousVideo: 0, playVideo: 0, pauseVideo: 0, tombolPutar: 0 };
+
+  /** Keadaan menurut YouTube Music sendiri: 1 berputar, 2 jeda. */
+  let playerState = 1;
 
   const listeners = new Map();
   const addEventListener = (target) => (name, handler, options) => {
@@ -66,13 +69,29 @@ function createPage() {
     previousVideo: () => calls.previousVideo++,
     playVideo: () => calls.playVideo++,
     pauseVideo: () => calls.pauseVideo++,
+    getPlayerState: () => playerState,
     getVolume: () => 100,
     isMuted: () => false,
     setVolume: () => {},
   };
 
+  /** Tombol putar/jeda milik YouTube, di dalam player bar. */
+  const playButton = { click: () => calls.tombolPutar++ };
+  let playButtonPresent = true;
+
+  const playerBar = {
+    querySelector: (selector) =>
+      playButtonPresent && (selector === '#play-pause-button' || selector === '.play-pause-button')
+        ? playButton
+        : null,
+  };
+
   const document = {
-    querySelector: (selector) => (selector === 'video' ? video : null),
+    querySelector: (selector) => {
+      if (selector === 'video') return video;
+      if (selector === 'ytmusic-player-bar') return playerBar;
+      return playerBar.querySelector(selector);
+    },
     getElementById: (id) => (id === 'movie_player' ? player : null),
   };
 
@@ -107,6 +126,15 @@ function createPage() {
     calls,
     /** Suntikkan satu instansi page.js, seperti sekali pasang ekstensi. */
     inject: () => vm.runInContext(SOURCE, context),
+    /** Atur keadaan menurut pemutar YouTube, terlepas dari elemen <video>. */
+    setPlayerState: (value) => {
+      playerState = value;
+    },
+    /** Sembunyikan tombol asli YouTube, untuk menguji jalur cadangan. */
+    hidePlayButton: () => {
+      playButtonPresent = false;
+    },
+    video,
     /** Kirim perintah persis seperti content.js mengirimkannya. */
     command: (action) => page.commandOn('taut/2', action),
     /** Kirim lewat saluran tertentu — untuk menguji saluran yang sudah lewat. */
@@ -175,6 +203,7 @@ check('saluran lama tidak lagi didengar', () => {
 
 check('putar/jeda juga tidak berganda', () => {
   const page = createPage();
+  page.hidePlayButton(); // paksa lewat API, supaya sakelarnya yang diuji
   page.inject();
   page.inject();
 
@@ -184,6 +213,34 @@ check('putar/jeda juga tidak berganda', () => {
   page.command('playPause');
   assert.strictEqual(page.calls.pauseVideo, 1);
   assert.strictEqual(page.calls.playVideo, 0);
+});
+
+check('putar/jeda menekan tombol asli YouTube', () => {
+  const page = createPage();
+  page.inject();
+
+  page.command('playPause');
+  assert.strictEqual(page.calls.tombolPutar, 1);
+  // Tombolnya sudah menggerakkan YouTube; API tidak perlu ikut dipanggil,
+  // karena dua-duanya berarti dua kali berpindah.
+  assert.strictEqual(page.calls.pauseVideo, 0);
+  assert.strictEqual(page.calls.playVideo, 0);
+});
+
+check('elemen <video> dan pemutar tidak sejalan: pemutar yang dipercaya', () => {
+  const page = createPage();
+  page.hidePlayButton();
+  page.inject();
+
+  // Inilah tab yang rusak itu: pemutar bilang jeda, elemennya bilang tidak.
+  page.setPlayerState(2);
+  page.video.paused = false;
+
+  // Sebelum perbaikan, element.paused yang dibaca — jadi Taut mengira lagunya
+  // berputar dan menekan jeda lagi, yang tidak mengubah apa pun.
+  page.command('playPause');
+  assert.strictEqual(page.calls.playVideo, 1, 'seharusnya diputar, bukan dijeda');
+  assert.strictEqual(page.calls.pauseVideo, 0);
 });
 
 console.log(`\n${passed} lolos\n`);
