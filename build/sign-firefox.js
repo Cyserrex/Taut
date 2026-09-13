@@ -233,7 +233,21 @@ async function main() {
   // Tunjukkan hanya berkas yang baru muncul, supaya sisa penandatanganan
   // sebelumnya tidak ikut disebut sebagai hasil kali ini.
   const fresh = listXpi().filter((name) => !before.has(name));
-  const signed = fresh.length > 0 ? fresh : listXpi();
+
+  // AMO menamai berkasnya dengan slug acak seperti "231d8ac754af40259157-1.1.3.xpi".
+  // Tidak salah, tapi enam bulan lagi tidak ada yang tahu itu berkas apa.
+  const signed = fresh.map((name) => {
+    const wanted = `taut-${version}.xpi`;
+    if (name === wanted) return name;
+    try {
+      fs.renameSync(path.join(OUT, name), path.join(OUT, wanted));
+      return wanted;
+    } catch {
+      return name; // nama aslinya tetap sah; penggantian nama cuma kenyamanan
+    }
+  });
+
+  if (signed.length === 0) signed.push(...listXpi());
 
   console.log('\n  Selesai. Berkas bertanda tangan:');
   for (const name of signed) console.log(`      dist/${name}`);
