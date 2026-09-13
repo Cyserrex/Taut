@@ -30,17 +30,36 @@ perintah; ekstensi yang benar-benar menekan tombol di halaman YouTube Music.
 
 ## Yang dibutuhkan
 
-- **Node.js 18** atau lebih baru di PC
+- **Windows 10** atau lebih baru — `.NET Framework 4.8` sudah ikut di dalamnya
 - **Chrome/Edge/Brave** atau **Firefox**
 - HP dan PC tersambung ke **WiFi yang sama**
 
-Tidak ada dependensi npm sama sekali. Tidak perlu `npm install`.
+Tidak perlu memasang Node.js, tidak perlu `npm install`.
 
 ---
 
 ## Pasang
 
-### 1. Jalankan server di PC
+### 1. Jalankan Taut.exe di PC
+
+Unduh **`Taut.exe`** dari [halaman Releases](https://github.com/Cyserrex/Taut/releases),
+simpan di mana saja, lalu klik dua kali.
+
+Taut muncul sebagai ikon di area notifikasi dekat jam. Tidak ada jendela yang
+menghalangi, tidak ada terminal. Satu berkas, tanpa pemasangan.
+
+Saat pertama dijalankan, Windows akan bertanya soal firewall — pilih
+**Private networks**, lalu **Allow access**. Tanpa itu HP tidak bisa menemukan
+PC-mu.
+
+> **Mau Taut menyala sendiri tiap login?** Klik kanan ikonnya →
+> **Jalan saat Windows menyala**. Sekali klik, selesai.
+
+<details>
+<summary>Atau jalankan dari kode sumber, dengan Node.js</summary>
+
+Server versi Node.js melakukan hal yang sama persis dan bicara protokol yang
+identik — itulah yang dipakai untuk pengembangan dan pengujian.
 
 ```bash
 git clone https://github.com/Cyserrex/Taut.git
@@ -48,12 +67,13 @@ cd Taut
 npm start
 ```
 
-Terminal menampilkan QR code, alamat, dan **PIN enam angka**.
-Biarkan jendela ini terbuka selama kamu memakai Taut.
+Terminal menampilkan QR code, alamat, dan PIN. Jalankan `npm run autostart`
+kalau tidak mau mengetiknya tiap kali; lihat
+[Menyalakan Taut otomatis](#menyalakan-taut-otomatis).
 
-> **Tidak mau mengetik ini tiap kali?** Jalankan `npm run autostart` sekali,
-> dan Taut menyala sendiri di latar belakang setiap Windows login — tanpa
-> jendela terminal sama sekali. Lihat [Menyalakan Taut otomatis](#menyalakan-taut-otomatis).
+Jangan menjalankan keduanya bersamaan — keduanya memakai port yang sama.
+
+</details>
 
 ### 2. Pasang ekstensi di browser
 
@@ -93,13 +113,17 @@ kehilangan tanda `!` begitu tersambung.
 1. Unduh APK dari [halaman Releases](https://github.com/Cyserrex/Taut/releases)
 2. Pasang (Android akan meminta izin memasang dari sumber luar)
 3. Buka aplikasi — PC-mu muncul sendiri di daftar
-4. Ketuk PC itu, masukkan PIN dari terminal. Selesai, selamanya.
+4. Ketuk PC itu, masukkan PIN. Selesai, selamanya.
+
+PIN-nya ada di jendela **Hubungkan HP**: klik dua kali ikon Taut di area
+notifikasi. (Kalau memakai versi Node.js, PIN tampil di terminal atau lewat
+`npm run info`.)
 
 Sesudah ini kamu tidak perlu tahu alamat IP sama sekali. Kalau router
 memberi PC alamat baru, aplikasi mencarinya lagi sendiri.
 
 **Lewat browser HP** — tanpa pasang apa pun
-Scan QR code di terminal dengan kamera HP.
+Scan QR code di jendela **Hubungkan HP** dengan kamera HP.
 
 > Supaya terasa seperti aplikasi: di Chrome HP, buka menu ⋮ lalu
 > **Tambahkan ke layar utama**.
@@ -341,6 +365,8 @@ npm run mock      # ekstensi tiruan, untuk mengutak-atik tampilan tanpa Chrome
 npm run build:ext # susun ekstensi untuk Chrome dan Firefox ke dist/
 npm run lint:ext  # periksa ekstensi dengan validator resmi Mozilla
 npm run info      # QR code, alamat, dan PIN dari server yang sedang berjalan
+npm run build:exe # susun windows/ jadi dist/Taut.exe
+npm run test:exe  # jalankan uji protokol terhadap Taut.exe
 ```
 
 `lint:ext` dan `sign:firefox` memanggil `web-ext` lewat `npx`, jadi alat itu
@@ -354,6 +380,9 @@ jadi kamu tidak perlu login atau memutar musik sungguhan.
 ### Susunan berkas
 
 ```
+windows/       Taut.exe — server yang sama, ditulis ulang dengan C#
+  src/         .NET Framework 4.8, WinForms untuk ikon tray
+  build.js     penyusun; halaman remote ikut ditanam ke dalam .exe
 server/        server penghubung — HTTP, WebSocket, QR, token
   ws.js        implementasi WebSocket (RFC 6455) tanpa dependensi
   qr.js        generator QR code tanpa dependensi
@@ -376,6 +405,28 @@ Android SDK:
 cd android && gradle assembleRelease
 ```
 
+### Dua server, satu protokol
+
+Taut punya dua server yang melakukan hal yang sama persis: satu ditulis dengan
+Node.js (`server/`), satu dengan C# (`windows/`). Yang dipakai pengguna adalah
+`Taut.exe`, karena tidak menuntut pemasangan Node.js. Yang Node dipakai untuk
+pengembangan — lebih cepat diutak-atik, dan berjalan di sistem apa pun.
+
+Duplikasi seperti ini biasanya ide buruk, dan di sini ditahan oleh satu hal:
+**berkas uji yang sama dijalankan terhadap keduanya.**
+
+```bash
+node test/server.test.js         # terhadap server Node
+node test/server.test.js --exe   # terhadap Taut.exe
+```
+
+Kalau salah satu menyimpang, uji itu merah. Ekstensi dan aplikasi Android tidak
+tahu — dan tidak perlu tahu — sedang bicara dengan yang mana.
+
+Generator QR juga ada dua kali, dan dijaga dengan cara yang sama: uji
+membandingkan keluaran C# dengan keluaran JavaScript bit demi bit, dan versi
+JavaScript-nya sendiri sudah diverifikasi dengan decoder sungguhan.
+
 ### Catatan rancangan
 
 `extension/page.js` membaca keadaan berlapis, dari yang paling stabil ke yang
@@ -385,7 +436,12 @@ yang hilang paling banter indikator acak/ulangi.
 
 `server/ws.js` ditulis sendiri supaya Taut bisa dijalankan langsung setelah
 `git clone`, tanpa `npm install`. Cakupannya sengaja sempit: teks JSON,
-ping/pong, dan penutupan yang rapi.
+ping/pong, dan penutupan yang rapi. Versi C#-nya sama sempitnya.
+
+`Taut.exe` memakai `TcpListener` mentah, bukan `HttpListener` bawaan .NET.
+`HttpListener` menuntut pendaftaran URL ACL untuk mendengarkan di alamat selain
+localhost, yang berarti Taut harus dijalankan sebagai administrator — untuk
+sebuah remote musik, itu harga yang tidak masuk akal.
 
 Ekstensi menyuntikkan `page.js` lewat tag `<script>` alih-alih memakai
 `world: "MAIN"` di manifest. Cara manifest lebih ringkas, tapi hanya berlaku di

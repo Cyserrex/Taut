@@ -161,7 +161,15 @@ function fetchJson(pathname, host = '127.0.0.1') {
 // ------------------------------------------------------------------ jalankan
 
 async function main() {
-  const server = spawn(process.execPath, ['server/index.js', '--port', String(PORT)], {
+  // Uji yang sama dijalankan terhadap dua server: yang ditulis dengan Node,
+  // dan Taut.exe. Keduanya harus berbicara protokol yang persis sama, karena
+  // ekstensi dan aplikasi Android tidak tahu sedang bicara dengan yang mana.
+  const useExe = process.argv.includes('--exe');
+  const [command, commandArgs] = useExe
+    ? [path.join(ROOT, 'dist', 'Taut.exe'), ['--console', '--port', String(PORT)]]
+    : [process.execPath, ['server/index.js', '--port', String(PORT)]];
+
+  const server = spawn(command, commandArgs, {
     cwd: ROOT,
     stdio: ['ignore', 'pipe', 'ignore'],
   });
@@ -171,7 +179,7 @@ async function main() {
   // dilakukan pengguna.
   let banner = '';
   server.stdout.on('data', (chunk) => (banner += chunk));
-  const pinFromBanner = () => banner.match(/Masukkan PIN ini saat diminta:\s*(\d{6})/)?.[1];
+  const pinFromBanner = () => banner.match(/PIN[^0-9]{0,40}(\d{6})/)?.[1];
 
   // Tunggu sampai server benar-benar menerima koneksi.
   for (let i = 0; i < 60; i++) {
@@ -361,14 +369,14 @@ async function main() {
       passed++;
     }
 
-    console.log(`server: ${passed} pemeriksaan lulus`);
+    console.log(`${useExe ? 'Taut.exe' : 'server'}: ${passed} pemeriksaan lulus`);
   } finally {
     server.kill();
   }
 }
 
 main().catch((error) => {
-  console.error('server: GAGAL —', error.message);
+  console.error('GAGAL —', error.message);
   process.exitCode = 1;
   setTimeout(() => process.exit(1), 100);
 });

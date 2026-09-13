@@ -77,6 +77,38 @@ jobs:
             dist/*.xpi
           if-no-files-found: error
 
+  windows:
+    name: Taut.exe
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Bangun Taut.exe
+        run: npm run build:exe
+
+      # Uji yang sama dijalankan terhadap server Node dan terhadap Taut.exe.
+      # Keduanya harus berbicara protokol yang persis sama, karena ekstensi
+      # dan aplikasi Android tidak tahu sedang bicara dengan yang mana.
+      - name: Uji protokol Taut.exe
+        run: node test/server.test.js --exe
+
+      - name: Beri nama sesuai versi
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          cp dist/Taut.exe "dist/Taut-v${VERSION}.exe"
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/Taut-v*.exe
+          if-no-files-found: error
+
   android:
     name: APK Android
     runs-on: ubuntu-latest
@@ -112,7 +144,7 @@ jobs:
 
   release:
     name: Terbitkan Release
-    needs: [test, extension, android]
+    needs: [test, extension, android, windows]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
@@ -132,9 +164,10 @@ jobs:
           mkdir -p dist "taut-$VERSION"
           # build/ wajib ikut: README menyuruh menjalankan `npm run build:ext`,
           # dan tanpa folder ini perintah itu gagal bagi pemakai zip.
-          cp -r server extension web test build package.json README.md LICENSE "taut-$VERSION/"
+          cp -r server extension web test build windows package.json README.md LICENSE "taut-$VERSION/"
           zip -qr "dist/taut-v${VERSION}.zip" "taut-$VERSION"
           cp artifacts/apk/*.apk dist/
+          cp artifacts/windows/*.exe dist/
           cp artifacts/ekstensi/*.zip dist/
           # .xpi hanya ada kalau kredensial AMO tersedia.
           cp artifacts/ekstensi/*.xpi dist/ 2>/dev/null || true
