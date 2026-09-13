@@ -63,17 +63,25 @@ console.log('  package.json kalau nomor ini sudah pernah dipakai.\n');
 
 // web-ext sengaja dipanggil lewat npx, bukan dijadikan dependensi: Taut harus
 // tetap bisa dijalankan tanpa `npm install`, dan alat ini cuma dipakai saat rilis.
+//
+// Di Windows, npx sebenarnya npx.cmd, dan sejak Node 20.12 berkas .cmd tidak
+// boleh dijalankan langsung tanpa shell (menolak dengan EINVAL). Maka di sana
+// perintahnya dilewatkan shell, dan jalur berkas dikutip supaya nama folder
+// yang mengandung spasi tidak terpecah.
+const useShell = process.platform === 'win32';
+const quote = (value) => (useShell ? `"${value}"` : value);
+
 const result = spawnSync(
-  process.platform === 'win32' ? 'npx.cmd' : 'npx',
+  'npx',
   [
     '--yes',
     'web-ext@8',
     'sign',
-    `--source-dir=${SOURCE}`,
-    `--artifacts-dir=${OUT}`,
+    `--source-dir=${quote(SOURCE)}`,
+    `--artifacts-dir=${quote(OUT)}`,
     '--channel=unlisted',
   ],
-  { stdio: 'inherit', cwd: ROOT }
+  { stdio: 'inherit', cwd: ROOT, shell: useShell }
 );
 
 if (result.status !== 0) {

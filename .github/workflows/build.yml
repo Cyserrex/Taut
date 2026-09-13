@@ -130,7 +130,9 @@ jobs:
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           mkdir -p dist "taut-$VERSION"
-          cp -r server extension web test package.json README.md LICENSE "taut-$VERSION/"
+          # build/ wajib ikut: README menyuruh menjalankan `npm run build:ext`,
+          # dan tanpa folder ini perintah itu gagal bagi pemakai zip.
+          cp -r server extension web test build package.json README.md LICENSE "taut-$VERSION/"
           zip -qr "dist/taut-v${VERSION}.zip" "taut-$VERSION"
           cp artifacts/apk/*.apk dist/
           cp artifacts/ekstensi/*.zip dist/
