@@ -3,7 +3,6 @@ package com.cyserrex.taut
 import android.os.Handler
 import android.os.Looper
 import org.json.JSONObject
-import java.io.BufferedReader
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -49,7 +48,7 @@ object Pairing {
             val code = connection.responseCode
             val body = (if (code in 200..299) connection.inputStream else connection.errorStream)
                 ?.bufferedReader()
-                ?.use(BufferedReader::readText)
+                ?.use { it.readText() }
                 .orEmpty()
 
             when (code) {

@@ -43,40 +43,37 @@ object Discovery {
     ) {
         Thread {
             val found = LinkedHashMap<String, Server>()
-            var socket: DatagramSocket? = null
 
             try {
-                socket = DatagramSocket().apply {
-                    broadcast = true
-                    soTimeout = 250
-                }
+                DatagramSocket().use { socket ->
+                    socket.broadcast = true
+                    socket.soTimeout = 250
 
-                val probe = PROBE.toByteArray()
-                for (address in broadcastAddresses()) {
-                    try {
-                        socket.send(DatagramPacket(probe, probe.size, address, port))
-                    } catch (_: Exception) {
-                        // Satu antarmuka jaringan menolak; yang lain tetap dicoba.
-                    }
-                }
-
-                val deadline = System.currentTimeMillis() + timeoutMs
-                val buffer = ByteArray(REPLY_BUFFER)
-
-                while (System.currentTimeMillis() < deadline) {
-                    val packet = DatagramPacket(buffer, buffer.size)
-                    try {
-                        socket.receive(packet)
-                    } catch (_: SocketTimeoutException) {
-                        continue
+                    val probe = PROBE.toByteArray()
+                    for (address in broadcastAddresses()) {
+                        try {
+                            socket.send(DatagramPacket(probe, probe.size, address, port))
+                        } catch (_: Exception) {
+                            // Satu antarmuka jaringan menolak; yang lain tetap dicoba.
+                        }
                     }
 
-                    parse(packet)?.let { found[it.host] = it }
+                    val deadline = System.currentTimeMillis() + timeoutMs
+                    val buffer = ByteArray(REPLY_BUFFER)
+
+                    while (System.currentTimeMillis() < deadline) {
+                        val packet = DatagramPacket(buffer, buffer.size)
+                        try {
+                            socket.receive(packet)
+                        } catch (_: SocketTimeoutException) {
+                            continue
+                        }
+
+                        parse(packet)?.let { found[it.host] = it }
+                    }
                 }
             } catch (_: Exception) {
                 // Jaringan tidak tersedia. Daftar kosong sudah cukup menjelaskan.
-            } finally {
-                socket?.close()
             }
 
             val result = found.values.toList()
@@ -86,15 +83,17 @@ object Discovery {
 
     private fun parse(packet: DatagramPacket): Server? = try {
         val json = JSONObject(String(packet.data, 0, packet.length))
-        if (json.optString("app") != "taut") {
-            null
-        } else {
+        val host = packet.address?.hostAddress
+
+        if (json.optString("app") == "taut" && host != null) {
             Server(
-                host = packet.address.hostAddress ?: return null,
+                host = host,
                 name = json.optString("name", "PC"),
-                port = json.optInt("port", 8787),
+                port = json.optInt("port", Prefs.DEFAULT_PORT),
                 version = json.optString("version", "?"),
             )
+        } else {
+            null
         }
     } catch (_: Exception) {
         null
