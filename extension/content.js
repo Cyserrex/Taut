@@ -8,7 +8,7 @@
  */
 
 (() => {
-  const CHANNEL = 'taut';
+  const CHANNEL = 'taut/2';
   const RECONNECT_DELAY = 1000;
 
   let port = null;

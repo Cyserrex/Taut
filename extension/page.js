@@ -14,8 +14,33 @@
  */
 
 (() => {
-  const CHANNEL = 'taut';
+  /**
+   * Nama saluran memuat nomor, dan nomornya naik saat berkas ini berubah cara
+   * bicaranya. Sebabnya ada di bawah: instansi lama bisa ikut mendengar.
+   */
+  const CHANNEL = 'taut/2';
   const POLL_INTERVAL = 1000;
+
+  /**
+   * Hanya boleh ada satu instansi di satu halaman.
+   *
+   * Memasang ulang atau memperbarui ekstensi tidak memuat ulang tab yang
+   * sedang terbuka — Firefox menyuntikkan content script yang baru ke tab
+   * lama, sementara yang lama tetap hidup. Keduanya lalu mendengar perintah
+   * yang sama, dan satu ketukan "berikutnya" melompat dua lagu. Tiga kali
+   * pasang, tiga lagu.
+   *
+   * Jadi instansi baru mematikan pendahulunya. Yang dipasang sebelum
+   * perubahan ini tidak tahu caranya berhenti — tapi mereka masih menunggu
+   * di saluran lama, yang sekarang sudah tidak dipakai lagi, sehingga
+   * perintahnya tidak lagi sampai ke mereka.
+   */
+  window.__tautPage?.stop?.();
+
+  /** Satu tuas untuk melepas semua pendengar sekaligus. */
+  const life = new AbortController();
+  const listen = (target, name, handler) =>
+    target.addEventListener(name, handler, { signal: life.signal });
 
   // ------------------------------------------------------------- pengambil
 
@@ -278,7 +303,7 @@
     post({ type: 'state', state });
   }
 
-  window.addEventListener('message', (event) => {
+  listen(window, 'message', (event) => {
     if (event.source !== window) return;
     const data = event.data;
     if (data?.channel !== CHANNEL || data.type !== 'command') return;
@@ -301,15 +326,22 @@
     if (!element || element === watched) return;
     watched = element;
     for (const name of ['play', 'pause', 'volumechange', 'seeked', 'ratechange', 'ended']) {
-      element.addEventListener(name, () => publish(true));
+      listen(element, name, () => publish(true));
     }
     publish(true);
   }
 
-  setInterval(() => {
+  const timer = setInterval(() => {
     watchVideo();
     publish();
   }, POLL_INTERVAL);
+
+  window.__tautPage = {
+    stop() {
+      life.abort();
+      clearInterval(timer);
+    },
+  };
 
   watchVideo();
   post({ type: 'ready' });
