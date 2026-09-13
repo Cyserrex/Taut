@@ -24,6 +24,7 @@ const SRC = path.join(HERE, 'src');
 const WEB = path.join(ROOT, 'web');
 const OUT_DIR = path.join(ROOT, 'dist');
 const OUT_EXE = path.join(OUT_DIR, 'Taut.exe');
+const ICON = path.join(HERE, 'Taut.ico');
 
 /** Versi Roslyn dipatok agar hasil build tidak berubah diam-diam. */
 const ROSLYN_VERSION = '4.8.0';
@@ -123,10 +124,27 @@ function collectWebResources() {
  * saat keduanya pasti berbeda, dan yang salah adalah yang tidak dilihat orang.
  */
 function writeBuildInfo(outDir) {
-  const version = require(path.join(ROOT, 'package.json')).version;
+  const pkg = require(path.join(ROOT, 'package.json'));
+  const version = pkg.version;
   const file = path.join(outDir, 'BuildInfo.cs');
 
+  // Metadata versi ikut ditulis di sini. Berkas .exe tanpa keterangan apa pun
+  // tampil sebagai "Unknown" di dialog Windows dan di Task Manager — dan
+  // program tak bernama yang membuka port jaringan memang pantas dicurigai.
   const lines = [
+    'using System.Reflection;',
+    '',
+    // AssemblyTitle jadi FileDescription — teks yang tampil di Task Manager
+    // dan di dialog SmartScreen. Di situlah orang memutuskan percaya atau
+    // tidak, jadi sebutkan gunanya, bukan cuma namanya.
+    '[assembly: AssemblyTitle("Taut - Remote YouTube Music lewat WiFi lokal")]',
+    '[assembly: AssemblyProduct("Taut")]',
+    `[assembly: AssemblyDescription("${pkg.description}")]`,
+    '[assembly: AssemblyCompany("Cyserrex")]',
+    '[assembly: AssemblyCopyright("MIT License")]',
+    `[assembly: AssemblyVersion("${version}.0")]`,
+    `[assembly: AssemblyFileVersion("${version}.0")]`,
+    '',
     'namespace Taut',
     '{',
     '    /// <summary>Dihasilkan oleh windows/build.js. Jangan disunting.</summary>',
@@ -147,6 +165,13 @@ function build() {
     fail(
       'Taut.exe hanya bisa dibangun di Windows.',
       '    Compiler .NET Framework dan pustaka WinForms tidak tersedia di sistem lain.'
+    );
+  }
+
+  if (!fs.existsSync(ICON)) {
+    fail(
+      'windows/Taut.ico tidak ada.',
+      '    Rakit ulang dengan: node windows/make-icon.js <folder-png>'
     );
   }
 
@@ -173,6 +198,10 @@ function build() {
     '-optimize+',
     '-langversion:latest',
     '-warnaserror-',
+    // Ikon berkas, yang tampil di File Explorer dan bilah tugas.
+    `-win32icon:${ICON}`,
+    // Salinan yang sama ditanam sebagai sumber daya, dipakai ikon tray.
+    `/resource:${ICON},Taut.Taut.ico`,
     `-out:${OUT_EXE}`,
     '-reference:System.dll',
     '-reference:System.Core.dll',

@@ -51,7 +51,7 @@ namespace Taut
 
             _icon = new NotifyIcon
             {
-                Icon = BuildIcon(),
+                Icon = LoadIcon(),
                 Text = "Taut",
                 ContextMenuStrip = menu,
                 Visible = true,
@@ -158,13 +158,36 @@ namespace Taut
         // -------------------------------------------------------------- ikon
 
         /// <summary>
-        /// Ikon digambar sendiri, bukan ditanam sebagai berkas .ico.
+        /// Ikon Taut, diambil dari berkas .ico yang ditanam di dalam .exe.
         ///
-        /// Bentuknya sederhana — not balok di atas kotak gelap — jadi
-        /// menggambarnya lebih ringkas daripada menyiapkan berkas ikon untuk
-        /// setiap ukuran, dan hasilnya selalu tajam mengikuti DPI layar.
+        /// Berkas itu memuat tujuh ukuran, dan Windows memilih sendiri yang
+        /// paling pas untuk area notifikasi — termasuk pada layar ber-DPI
+        /// tinggi, di mana ikon yang diskalakan terlihat buram.
+        ///
+        /// Kalau sumber dayanya hilang karena sesuatu, ikon digambar seadanya
+        /// supaya Taut tetap punya penanda alih-alih tidak muncul sama sekali.
         /// </summary>
-        private static Icon BuildIcon()
+        private static Icon LoadIcon()
+        {
+            try
+            {
+                var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                using (var stream = assembly.GetManifestResourceStream("Taut.Taut.ico"))
+                {
+                    if (stream != null)
+                    {
+                        return new Icon(stream, SystemInformation.SmallIconSize);
+                    }
+                }
+            }
+            catch
+            {
+                // Jatuh ke ikon gambaran sendiri di bawah.
+            }
+            return DrawFallbackIcon();
+        }
+
+        private static Icon DrawFallbackIcon()
         {
             using (var bitmap = new Bitmap(32, 32))
             {

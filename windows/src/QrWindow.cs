@@ -41,6 +41,23 @@ namespace Taut
             MaximizeBox = false;
             MinimizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
+            ShowInTaskbar = false;
+
+            // Ikon yang sama dengan berkas .exe, supaya bilah judulnya tidak
+            // memakai ikon jendela bawaan Windows.
+            try
+            {
+                var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                using (var stream = assembly.GetManifestResourceStream("Taut.Taut.ico"))
+                {
+                    if (stream != null) Icon = new System.Drawing.Icon(stream);
+                }
+            }
+            catch
+            {
+                // Tanpa ikon pun jendelanya tetap berfungsi.
+            }
+
             ClientSize = new Size(380, 540);
 
             var heading = new Label

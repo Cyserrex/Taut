@@ -36,21 +36,7 @@ namespace Taut
             }
 
             var server = new TautServer(port);
-            try
-            {
-                server.Start();
-            }
-            catch (Exception error)
-            {
-                string message =
-                    "Tidak bisa memakai port " + port + ".\n\n" +
-                    "Kemungkinan ada program lain yang memakainya, atau Taut versi\n" +
-                    "Node.js masih berjalan.\n\n" + error.Message;
-
-                if (console) Console.Error.WriteLine(message);
-                else MessageBox.Show(message, "Taut", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return 1;
-            }
+            if (!TryStart(server, port, console)) return 1;
 
             if (console) return RunConsole(server);
 
@@ -77,6 +63,111 @@ namespace Taut
 
             server.Stop();
             return 0;
+        }
+
+        /// <summary>
+        /// Nyalakan server; kalau portnya terpakai, jelaskan oleh siapa.
+        ///
+        /// Penyebab tersering justru Taut sendiri — versi Node.js yang masih
+        /// berjalan dari pemasangan sebelumnya. Menyebut "port terpakai" saja
+        /// membuat pengguna buntu, padahal perbaikannya satu klik.
+        /// </summary>
+        private static bool TryStart(TautServer server, int port, bool console)
+        {
+            try
+            {
+                server.Start();
+                return true;
+            }
+            catch (Exception error)
+            {
+                var holder = PortConflict.Identify(port);
+
+                if (!console && holder.IsTaut && OfferToReplace(holder, port))
+                {
+                    try
+                    {
+                        server.Start();
+                        return true;
+                    }
+                    catch
+                    {
+                        // Jatuh ke pesan di bawah dengan keterangan apa adanya.
+                    }
+                }
+
+                Complain(holder, port, error, console);
+                return false;
+            }
+        }
+
+        /// <summary>Tawarkan menghentikan server Taut lain yang memegang port.</summary>
+        private static bool OfferToReplace(PortConflict.Holder holder, int port)
+        {
+            bool hasAutostart = PortConflict.NodeAutostartExists;
+
+            string message =
+                "Server Taut lain sudah berjalan di port " + port +
+                (holder.Version != null ? " (versi " + holder.Version + ")" : "") + ".\n\n" +
+                "Biasanya ini Taut versi Node.js dari pemasangan sebelumnya.\n" +
+                (hasAutostart
+                    ? "Versi itu juga disetel menyala sendiri tiap Windows login.\n\n"
+                    : "\n") +
+                "Hentikan dan pakai Taut.exe ini?";
+
+            var answer = MessageBox.Show(message, "Taut", MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+            if (answer != DialogResult.Yes) return false;
+
+            try
+            {
+                if (holder.Process != null)
+                {
+                    holder.Process.Kill();
+                    holder.Process.WaitForExit(5000);
+                }
+            }
+            catch
+            {
+                return false; // tidak boleh menghentikannya
+            }
+
+            // Tanpa ini, bentrokan yang sama kembali sendiri di login berikutnya.
+            if (hasAutostart) PortConflict.RemoveNodeAutostart();
+
+            // Beri waktu Windows melepas portnya.
+            Thread.Sleep(500);
+            return true;
+        }
+
+        private static void Complain(PortConflict.Holder holder, int port,
+            Exception error, bool console)
+        {
+            var message = new System.Text.StringBuilder();
+            message.Append("Tidak bisa memakai port ").Append(port).Append(".\n\n");
+
+            string name = holder.ProcessName;
+            if (holder.IsTaut)
+            {
+                message.Append("Server Taut lain sedang memakainya. Tutup dulu server itu,\n");
+                message.Append("lalu jalankan Taut.exe lagi.\n\n");
+            }
+            else if (name != null)
+            {
+                message.Append("Port itu dipakai oleh: ").Append(name).Append("\n\n");
+                message.Append("Tutup program tersebut, atau jalankan Taut di port lain:\n");
+                message.Append("    Taut.exe --port ").Append(port + 1).Append("\n\n");
+            }
+            else
+            {
+                message.Append("Ada program lain yang memakainya. Coba port lain:\n");
+                message.Append("    Taut.exe --port ").Append(port + 1).Append("\n\n");
+            }
+
+            message.Append(error.Message);
+
+            if (console) Console.Error.WriteLine(message.ToString());
+            else MessageBox.Show(message.ToString(), "Taut", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
 
         /// <summary>Gambarkan jendela "Hubungkan HP" ke berkas PNG, untuk diperiksa.</summary>

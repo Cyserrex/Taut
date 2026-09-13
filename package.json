@@ -1,6 +1,6 @@
 {
   "name": "taut",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Kendalikan YouTube Music di browser PC dari HP kamu lewat WiFi lokal.",
   "main": "server/index.js",
   "type": "commonjs",
@@ -20,7 +20,8 @@
     "autostart:status": "node build/autostart.js status",
     "info": "node server/info.js",
     "build:exe": "node windows/build.js",
-    "test:exe": "node windows/build.js && node test/server.test.js --exe"
+    "test:exe": "node windows/build.js && node test/server.test.js --exe",
+    "build:icon": "node windows/make-icon.js"
   },
   "keywords": [
     "youtube-music",

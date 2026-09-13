@@ -187,7 +187,49 @@ merah, portnya berbeda — ubah di popup itu juga.
 Ekstensi mencoba menyambung ulang sendiri tiap setengah menit, jadi tunggu
 sebentar sebelum menganggapnya gagal.
 
+**Windows menolak menjalankan Taut.exe / peringatan "Unknown publisher"**
+
+Itu **SmartScreen**, bukan deteksi virus. Taut.exe belum ditandatangani dengan
+sertifikat berbayar, jadi Windows belum punya dasar untuk mempercayainya —
+peringatan yang sama muncul untuk hampir semua program kecil yang baru dirilis.
+
+Klik **More info** → **Run anyway**.
+
+Kalau ingin memeriksa sendiri lebih dulu:
+
+```powershell
+Get-FileHash .\Taut.exe -Algorithm SHA256
+```
+
+Bandingkan dengan yang tertera di halaman Releases. Kode sumbernya juga ada di
+repositori ini, dan `Taut.exe` dibangun GitHub Actions dari kode itu — bukan
+diunggah dari komputer pribadi siapa pun.
+
+**Defender benar-benar menghapus berkasnya?**
+
+Itu berbeda dari peringatan SmartScreen di atas, dan berarti heuristik Defender
+salah menilai. Taut memang melakukan tiga hal yang mirip perilaku program jahat:
+membuka port jaringan, menulis kunci Run untuk autostart, dan berjalan tanpa
+jendela. Kombinasi itu wajar dicurigai mesin.
+
+Laporkan sebagai false positive di
+[Microsoft Security Intelligence](https://www.microsoft.com/en-us/wdsi/filesubmission) —
+biasanya diperbaiki dalam beberapa hari, dan perbaikannya berlaku untuk semua
+orang, bukan cuma komputermu.
+
 **Port 8787 sudah dipakai**
+
+Sejak v1.4.0, Taut.exe menyebutkan sendiri siapa yang memakainya — dan kalau
+itu server Taut versi Node.js dari pemasangan sebelumnya, ia menawarkan
+menghentikannya sekalian.
+
+Untuk memakai port lain:
+
+```bash
+Taut.exe --port 9000
+```
+
+atau, kalau menjalankan dari kode sumber:
 
 ```bash
 npm start -- --port 9000
@@ -383,6 +425,8 @@ jadi kamu tidak perlu login atau memutar musik sungguhan.
 windows/       Taut.exe — server yang sama, ditulis ulang dengan C#
   src/         .NET Framework 4.8, WinForms untuk ikon tray
   build.js     penyusun; halaman remote ikut ditanam ke dalam .exe
+  make-icon.js merakit Taut.ico dari PNG beberapa ukuran
+  Taut.ico     ikon berkas dan ikon tray, tujuh ukuran
 server/        server penghubung — HTTP, WebSocket, QR, token
   ws.js        implementasi WebSocket (RFC 6455) tanpa dependensi
   qr.js        generator QR code tanpa dependensi
