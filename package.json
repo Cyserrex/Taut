@@ -15,6 +15,7 @@
     "build:ext": "node build/extension.js",
     "lint:ext": "node build/extension.js && npx --yes web-ext@8 lint --source-dir=dist/firefox --self-hosted",
     "sign:firefox": "node build/extension.js && node build/sign-firefox.js",
+    "pack:firefox": "node build/pack-firefox.js",
     "autostart": "node build/autostart.js install",
     "autostart:off": "node build/autostart.js uninstall",
     "autostart:status": "node build/autostart.js status",
