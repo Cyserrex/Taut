@@ -1,6 +1,6 @@
 {
   "name": "taut",
-  "version": "1.6.4",
+  "version": "1.6.5",
   "description": "Kendalikan YouTube Music di browser PC dari HP kamu lewat WiFi lokal.",
   "main": "server/index.js",
   "type": "commonjs",

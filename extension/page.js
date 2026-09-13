@@ -153,22 +153,15 @@
   }
 
   /**
-   * Apakah lagunya sedang berputar.
+   * Apakah lagunya sedang terdengar.
    *
-   * TIDAK memakai element.paused sebagai sumber utama. Di tab yang sudah lama
-   * terbuka, elemen <video> dan pemutar YouTube bisa tidak lagi sejalan —
-   * pernah terlihat playerState=2 (jeda) sementara element.paused=false. Kalau
-   * yang dibaca elemennya, remote melaporkan "sedang berputar" terus-menerus
-   * dan tombol jeda seolah tidak berfungsi.
-   *
-   * getPlayerState() adalah anggapan YouTube Music sendiri, yang sama dengan
-   * yang ditampilkan tombolnya: 1 berputar, 3 sedang memuat.
+   * Yang dipercaya elemen <video>, bukan getPlayerState(), karena elemen
+   * itulah yang mengeluarkan suara. Di tab yang sudah lama terbuka keduanya
+   * bisa berhenti sejalan — pernah terlihat pemutar melaporkan jeda sementara
+   * lagunya masih terdengar dan seekbar-nya terus berjalan. Melaporkan
+   * keadaan pemutar dalam keadaan seperti itu membuat remote berbohong.
    */
   function readPlaying(element) {
-    const state = playerApi()?.getPlayerState?.();
-    if (typeof state === 'number' && Number.isFinite(state)) {
-      return state === 1 || state === 3;
-    }
     return !element.paused && !element.ended;
   }
 
@@ -206,25 +199,32 @@
 
   const actions = {
     playPause() {
-      // Tombol asli YouTube lebih dulu, dan itu memang yang paling benar:
-      // menekannya menggerakkan mesin keadaan YouTube Music sendiri, sehingga
-      // elemen <video>, pemutar, dan tampilan halaman ikut selaras. Memanggil
-      // pauseVideo() saja pernah gagal di tab yang keduanya sudah tidak
-      // sejalan — pemutarnya berhenti, tapi suaranya jalan terus.
-      if (clickButton(['#play-pause-button', '.play-pause-button'])) return;
-
       const element = video();
-      if (!element) return;
+      if (!element) {
+        // Tanpa elemen, tombol asli YouTube satu-satunya yang bisa ditekan.
+        clickButton(['#play-pause-button', '.play-pause-button']);
+        return;
+      }
 
+      // Arahnya ditentukan elemen <video>, karena itulah yang terdengar.
+      // Kalau keadaan pemutar yang dipakai, di tab yang sudah tidak sejalan
+      // satu ketukan justru menyuruhnya memutar lagi — padahal yang diminta
+      // berhenti.
+      const audible = readPlaying(element);
       const api = playerApi();
-      const playing = readPlaying(element);
-      if (playing) {
+
+      // Keduanya digerakkan, dan keduanya searah — bukan sakelar. Menyuruh
+      // berhenti sesuatu yang sudah berhenti tidak mengubah apa pun, jadi ini
+      // tetap aman saat keduanya memang sejalan. Pemutar diberi tahu supaya
+      // tampilan YouTube ikut berpindah; elemennya yang benar-benar
+      // membungkam suara.
+      if (audible) {
         if (api?.pauseVideo) api.pauseVideo();
-        else element.pause();
-      } else if (api?.playVideo) {
-        api.playVideo();
+        element.pause();
       } else {
-        element.play();
+        if (api?.playVideo) api.playVideo();
+        const started = element.play();
+        if (started?.catch) started.catch(() => {});
       }
     },
 
