@@ -57,7 +57,7 @@
             android:textColor="@color/taut_text_dim"
             android:textSize="14sp" />
 
-        <!-- ============================ pencarian ============================ -->
+        <!-- Pencarian PC di jaringan -->
 
         <LinearLayout
             android:id="@+id/scanSection"
@@ -130,7 +130,7 @@
                 android:textColor="@color/taut_text_faint"
                 android:textSize="13sp" />
 
-            <!-- ------------------------ alamat manual ------------------------ -->
+            <!-- Alamat manual, kalau penemuan otomatis tidak berhasil -->
 
             <LinearLayout
                 android:id="@+id/manualSection"
@@ -181,7 +181,7 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- ============================== PIN ============================== -->
+        <!-- Pembuktian dengan PIN dari terminal PC -->
 
         <LinearLayout
             android:id="@+id/pinSection"
