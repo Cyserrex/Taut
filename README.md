@@ -157,12 +157,20 @@ tanpa perlu memasang ulang APK.
 | Putar / jeda | Tombol besar di tengah |
 | Lagu berikutnya / sebelumnya | |
 | Geser posisi lagu | Tarik bilah progres |
-| Volume | Volume tab YouTube Music, bukan volume sistem |
+| Volume | **Volume Windows** saat memakai Taut.exe; volume tab kalau memakai server Node |
 | Bisukan | |
 | Acak & ulangi | Ulangi berputar: mati → semua → satu lagu |
 | Suka / lewati | Tombol jempol milik YouTube Music |
 
 Judul, artis, sampul album, dan posisi lagu ikut tampil dan diperbarui langsung.
+
+**Soal volume.** Slider di HP mengatur volume Windows, dan keterangan di
+bawahnya menyebutkan yang mana — ekstensi browser tidak bisa menyentuh volume
+sistem, jadi hanya `Taut.exe` yang mampu. Sebelumnya slider hanya mengatur
+elemen video di dalam tab: kalau volume Windows sedang di 20%, batas atasnya
+tetap 20%, dan dari HP tidak ada cara mengetahui itu.
+
+Di aplikasi Android, tombol volume fisik HP ikut mengatur volume Windows.
 
 ---
 
@@ -440,6 +448,8 @@ windows/       Taut.exe — server yang sama, ditulis ulang dengan C#
   build.js     penyusun; halaman remote ikut ditanam ke dalam .exe
   make-icon.js merakit Taut.ico dari PNG beberapa ukuran
   Taut.ico     ikon berkas dan ikon tray, tujuh ukuran
+windows/src/SystemVolume.cs
+               volume Windows lewat Core Audio API
 server/        server penghubung — HTTP, WebSocket, QR, token
   ws.js        implementasi WebSocket (RFC 6455) tanpa dependensi
   qr.js        generator QR code tanpa dependensi

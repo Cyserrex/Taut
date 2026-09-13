@@ -39,6 +39,7 @@ const ui = {
   mute: $('mute'),
   volume: $('volume'),
   volumeValue: $('volumeValue'),
+  volumeScope: $('volumeScope'),
   volumeBox: document.querySelector('.volume'),
   like: $('like'),
   dislike: $('dislike'),
@@ -84,6 +85,30 @@ function toast(message, ms = 2400) {
   ui.toast.classList.add('is-visible');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => ui.toast.classList.remove('is-visible'), ms);
+}
+
+/**
+ * Apakah slider volume sedang mengatur volume Windows.
+ *
+ * Server versi Windows bisa mengatur volume sistem; server Node tidak.
+ * Membiarkan slider mengatur volume tab saat volume Windows tersedia bikin
+ * bingung — plafonnya jadi tidak kelihatan dari HP.
+ */
+function usingSystemVolume() {
+  return Boolean(state?.systemVolumeAvailable);
+}
+
+/** Nilai volume yang sedang ditampilkan slider, 0..1. */
+function currentVolume() {
+  if (!state) return 1;
+  return usingSystemVolume() ? (state.systemVolume ?? 1) : (state.volume ?? 1);
+}
+
+function currentlyMuted() {
+  if (!state) return false;
+  return usingSystemVolume()
+    ? Boolean(state.systemMuted)
+    : Boolean(state.muted) || (state.volume ?? 1) === 0;
 }
 
 /** Isi warna track slider mengikuti nilainya (Chrome perlu ini manual). */
@@ -205,12 +230,13 @@ function applyState(next) {
   ui.dislike.setAttribute('aria-pressed', String(next.rating === 'dislike'));
 
   if (document.activeElement !== ui.volume) {
-    const percent = Math.round((next.volume ?? 1) * 100);
+    const percent = Math.round(currentVolume() * 100);
     ui.volume.value = String(percent);
     ui.volumeValue.textContent = String(percent);
     paintRange(ui.volume);
   }
-  ui.volumeBox.classList.toggle('is-muted', Boolean(next.muted) || (next.volume ?? 1) === 0);
+  ui.volumeBox.classList.toggle('is-muted', currentlyMuted());
+  ui.volumeScope.textContent = usingSystemVolume() ? 'Volume Windows' : 'Volume tab';
 
   renderProgress();
 }
@@ -319,8 +345,13 @@ ui.dislike.addEventListener('click', () => {
 
 ui.mute.addEventListener('click', () => {
   buzz();
-  optimistic({ muted: !state?.muted });
-  send('mute');
+  if (usingSystemVolume()) {
+    optimistic({ systemMuted: !state?.systemMuted });
+    send('systemMute');
+  } else {
+    optimistic({ muted: !state?.muted });
+    send('mute');
+  }
 });
 
 // --- slider volume: kirim sambil digeser, tapi dibatasi agar tidak membanjiri
@@ -335,12 +366,16 @@ ui.volume.addEventListener('input', () => {
   const now = Date.now();
   if (now - volumeThrottle < 60) return;
   volumeThrottle = now;
-  send('volume', percent / 100);
+  sendVolume(percent / 100);
 });
 
 ui.volume.addEventListener('change', () => {
-  send('volume', Number(ui.volume.value) / 100);
+  sendVolume(Number(ui.volume.value) / 100);
 });
+
+function sendVolume(level) {
+  return usingSystemVolume() ? send('systemVolume', level) : send('volume', level);
+}
 
 // --- slider posisi: tahan update dari server selama jari masih menempel
 
@@ -419,8 +454,10 @@ window.tautNative = {
     ui.volumeValue.textContent = String(next);
     paintRange(ui.volume);
     ui.volumeBox.classList.toggle('is-muted', next === 0);
-    toast(next === 0 ? 'Volume PC dibisukan' : `Volume PC ${next}%`, 1200);
-    return send('volume', next / 100);
+
+    const scope = usingSystemVolume() ? 'Windows' : 'tab';
+    toast(next === 0 ? `Volume ${scope} dibisukan` : `Volume ${scope} ${next}%`, 1200);
+    return sendVolume(next / 100);
   },
 
   /** Aplikasi memakai ini untuk tahu apakah remote sudah benar-benar siap. */

@@ -18,8 +18,17 @@ namespace Taut
         private readonly List<WebSocketConnection> _hosts = new List<WebSocketConnection>();
         private readonly List<WebSocketConnection> _remotes = new List<WebSocketConnection>();
 
-        /// <summary>Keadaan pemutar terakhir, apa adanya sebagai JSON.</summary>
-        private string _stateJson;
+        /// <summary>Keadaan pemutar terakhir dari ekstensi, apa adanya.</summary>
+        private string _rawState;
+
+        /// <summary>
+        /// Medan tambahan milik server, disisipkan ke setiap keadaan yang
+        /// disiarkan — volume Windows, misalnya, yang tidak diketahui ekstensi.
+        ///
+        /// Disisipkan saat mengirim, bukan saat menyimpan, supaya nilainya
+        /// selalu segar meski keadaan pemutarnya belum berubah.
+        /// </summary>
+        public Func<string> ServerFields;
 
         /// <summary>Diberi tahu saat jumlah sambungan berubah, untuk memperbarui tampilan.</summary>
         public event Action Changed;
@@ -43,7 +52,7 @@ namespace Taut
             {
                 _hosts.Remove(socket);
                 empty = _hosts.Count == 0;
-                if (empty) _stateJson = null;
+                if (empty) _rawState = null;
             }
 
             if (empty) BroadcastToRemotes("{\"type\":\"host\",\"connected\":false}");
@@ -61,14 +70,14 @@ namespace Taut
             {
                 _remotes.Add(socket);
                 hostConnected = _hosts.Count > 0;
-                state = _stateJson;
+                state = _rawState;
             }
 
             socket.Send("{\"type\":\"host\",\"connected\":" + Json.Bool(hostConnected) + "}");
 
             // Hanya kirim kalau memang sudah ada laporan dari ekstensi. Keadaan
             // kosong justru membuat remote mengira PC-nya belum siap.
-            if (state != null) socket.Send("{\"type\":\"state\",\"state\":" + state + "}");
+            if (state != null) socket.Send(StateMessage(state));
 
             RaiseChanged();
         }
@@ -84,12 +93,26 @@ namespace Taut
         /// <summary>Keadaan baru dari ekstensi: simpan, lalu sebarkan.</summary>
         public void PublishState(string stateJson)
         {
-            // Tandai tersambung di dalam keadaan itu sendiri, seperti yang
-            // diharapkan halaman remote.
-            string withFlag = InsertConnectedFlag(stateJson);
+            lock (_lock) _rawState = stateJson;
+            BroadcastToRemotes(StateMessage(stateJson));
+        }
 
-            lock (_lock) _stateJson = withFlag;
-            BroadcastToRemotes("{\"type\":\"state\",\"state\":" + withFlag + "}");
+        /// <summary>
+        /// Siarkan ulang keadaan terakhir tanpa menunggu laporan berikutnya
+        /// dari ekstensi — dipakai setelah server sendiri mengubah sesuatu,
+        /// supaya tampilan di HP langsung menyusul.
+        /// </summary>
+        public void Republish()
+        {
+            string state;
+            lock (_lock) state = _rawState;
+
+            if (state != null) BroadcastToRemotes(StateMessage(state));
+        }
+
+        private string StateMessage(string rawState)
+        {
+            return "{\"type\":\"state\",\"state\":" + Decorate(rawState) + "}";
         }
 
         /// <summary>Perintah dari remote diteruskan ke semua ekstensi.</summary>
@@ -112,21 +135,34 @@ namespace Taut
         }
 
         /// <summary>
-        /// Sisipkan "connected": true ke dalam objek keadaan.
+        /// Sisipkan medan milik server ke dalam objek keadaan dari ekstensi.
         ///
-        /// Keadaan dari ekstensi diteruskan apa adanya tanpa diurai, karena
-        /// isinya bisa berubah kapan saja mengikuti YouTube Music. Yang
-        /// ditambahkan hanya satu medan di awal objek.
+        /// Keadaan itu diteruskan apa adanya tanpa diurai, karena isinya bisa
+        /// berubah kapan saja mengikuti YouTube Music. Yang ditambahkan hanya
+        /// beberapa medan di awal objek.
         /// </summary>
-        private static string InsertConnectedFlag(string stateJson)
+        private string Decorate(string stateJson)
         {
-            if (string.IsNullOrEmpty(stateJson)) return "{\"connected\":true}";
+            var prefix = new System.Text.StringBuilder("{\"connected\":true");
 
-            string trimmed = stateJson.Trim();
-            if (!trimmed.StartsWith("{", StringComparison.Ordinal)) return "{\"connected\":true}";
-            if (trimmed == "{}") return "{\"connected\":true}";
+            var fields = ServerFields;
+            if (fields != null)
+            {
+                string extra = null;
+                try { extra = fields(); }
+                catch { /* medan tambahan tidak boleh menjatuhkan siaran */ }
 
-            return "{\"connected\":true," + trimmed.Substring(1);
+                if (!string.IsNullOrEmpty(extra)) prefix.Append(',').Append(extra);
+            }
+
+            string trimmed = (stateJson ?? string.Empty).Trim();
+            if (trimmed.Length < 2 || !trimmed.StartsWith("{", StringComparison.Ordinal))
+            {
+                return prefix.Append('}').ToString();
+            }
+            if (trimmed == "{}") return prefix.Append('}').ToString();
+
+            return prefix.Append(',').Append(trimmed.Substring(1)).ToString();
         }
 
         // -------------------------------------------------------- pemeliharaan

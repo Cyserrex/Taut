@@ -57,6 +57,11 @@ namespace Taut
 
             _discovery = new Discovery(_port, Version);
             _discovery.Start();
+
+            // Volume Windows bukan urusan ekstensi — ia tidak punya cara
+            // mengetahuinya — jadi servernya yang menyisipkan ke setiap
+            // keadaan yang disiarkan.
+            _hub.ServerFields = SystemVolumeFields;
         }
 
         public void Stop()
@@ -260,12 +265,57 @@ namespace Taut
             if (state != null) _hub.PublishState(state);
         }
 
+        /// <summary>
+        /// Keterangan volume Windows, ikut disisipkan ke setiap keadaan.
+        ///
+        /// "available" dikirim apa adanya supaya remote tahu harus menampilkan
+        /// slider yang mana: tanpa perangkat audio, ia kembali mengatur volume
+        /// tab seperti sebelumnya.
+        /// </summary>
+        private static string SystemVolumeFields()
+        {
+            float? level = SystemVolume.Get();
+            if (!level.HasValue) return "\"systemVolumeAvailable\":false";
+
+            bool muted = SystemVolume.GetMute() ?? false;
+            return "\"systemVolumeAvailable\":true"
+                 + ",\"systemVolume\":" + Json.Number(Math.Round(level.Value, 3))
+                 + ",\"systemMuted\":" + Json.Bool(muted);
+        }
+
+        /// <summary>
+        /// Perintah yang dikerjakan server sendiri, bukan diteruskan ke
+        /// ekstensi. Mengembalikan false kalau perintahnya bukan urusan server.
+        /// </summary>
+        private bool HandleLocally(string action, double? value)
+        {
+            if (action == "systemVolume")
+            {
+                if (!value.HasValue) return true;
+                SystemVolume.Set((float)value.Value);
+            }
+            else if (action == "systemMute")
+            {
+                SystemVolume.ToggleMute();
+            }
+            else
+            {
+                return false;
+            }
+
+            // Siarkan segera, supaya slider di HP tidak terasa tertinggal.
+            _hub.Republish();
+            return true;
+        }
+
         private void OnRemoteMessage(WebSocketConnection socket, string message)
         {
             if (Json.GetString(message, "type") != "command") return;
 
             string action = Json.GetString(message, "action");
             if (string.IsNullOrEmpty(action)) return;
+
+            if (HandleLocally(action, Json.GetNumber(message, "value"))) return;
 
             var sb = new StringBuilder();
             sb.Append("{\"type\":\"command\",\"action\":").Append(Json.String(action));
