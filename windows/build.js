@@ -171,6 +171,45 @@ function writeBuildInfo(outDir) {
   return file;
 }
 
+/**
+ * Petunjuk saat berkas keluaran sedang dikunci prosesnya sendiri.
+ *
+ * Pesan compiler untuk keadaan ini hanya menyebut "cannot write to output
+ * file", yang tidak memberi tahu apa yang harus ditutup. Yang dicari adalah
+ * proses yang menjalankan BERKAS ITU, bukan sembarang Taut.exe — salinan uji
+ * dan salinan yang dipakai sehari-hari sering berjalan bersamaan, dan menyuruh
+ * menutup yang salah malah membuang pekerjaan orang.
+ */
+function lockHint() {
+  const name = path.basename(OUT_EXE);
+  const quoted = OUT_EXE.replace(/'/g, "''");
+
+  const running = spawnSync(
+    'powershell',
+    [
+      '-NoProfile',
+      '-Command',
+      "Get-Process -ErrorAction SilentlyContinue | " +
+        `Where-Object { $_.Path -eq '${quoted}' } | ` +
+        'Select-Object -ExpandProperty Id',
+    ],
+    { encoding: 'utf8' }
+  );
+
+  const pids = (running.stdout || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (pids.length === 0) return undefined;
+
+  return (
+    `    ${name} sedang berjalan dan mengunci berkasnya (pid ${pids.join(', ')}).\n` +
+    '    Tutup lewat ikon di area notifikasi, atau:\n' +
+    `      taskkill /PID ${pids[0]} /F`
+  );
+}
+
 function build() {
   if (process.platform !== 'win32') {
     fail(
@@ -226,21 +265,7 @@ function build() {
   const result = spawnSync(csc, args, { stdio: 'inherit' });
 
   if (result.status !== 0) {
-    // Penyebab paling sering, dan paling membingungkan karena pesan compiler
-    // hanya menyebut "cannot write to output file".
-    const running = spawnSync('tasklist', ['/FI', 'IMAGENAME eq Taut.exe'], {
-      encoding: 'utf8',
-    });
-    const locked = (running.stdout || '').includes('Taut.exe');
-
-    fail(
-      'Kompilasi gagal.',
-      locked
-        ? '    Taut.exe sedang berjalan dan mengunci berkasnya.\n' +
-          '    Tutup lewat ikon di area notifikasi, atau:\n' +
-          '      taskkill /IM Taut.exe /F'
-        : undefined
-    );
+    fail('Kompilasi gagal.', lockHint());
   }
 
   const size = Math.round(fs.statSync(OUT_EXE).size / 1024);

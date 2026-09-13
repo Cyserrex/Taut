@@ -41,6 +41,10 @@ const ui = {
   volumeValue: $('volumeValue'),
   volumeScope: $('volumeScope'),
   volumeBox: document.querySelector('.volume'),
+  sleep: $('sleep'),
+  sleepLabel: $('sleepLabel'),
+  sleepOptions: $('sleepOptions'),
+  sleepBox: document.querySelector('.sleep'),
   like: $('like'),
   dislike: $('dislike'),
   toast: $('toast'),
@@ -214,6 +218,7 @@ function setHostConnected(connected) {
       'Menunggu YouTube Music',
       'Buka <strong>music.youtube.com</strong> di Chrome pada PC kamu, lalu putar sebuah lagu.'
     );
+    reportToAndroid();
   }
 }
 
@@ -268,7 +273,39 @@ function applyState(next) {
     usingSystemVolume() ? 'Ganti ke volume tab' : 'Ganti ke volume Windows'
   );
 
+  renderSleep(next.sleepTimerSeconds);
+
   renderProgress();
+  reportToAndroid();
+}
+
+/**
+ * Sisa waktu timer tidur.
+ *
+ * Angkanya datang dari server tiap detik, jadi tidak perlu dihitung sendiri —
+ * dan kalau HP sempat tertidur, yang tampil tetap sisa yang sebenarnya.
+ */
+function renderSleep(seconds) {
+  // Server versi Node belum punya timer; sembunyikan saja daripada menampilkan
+  // tombol yang tidak melakukan apa-apa.
+  const supported = seconds !== undefined && seconds !== null;
+  ui.sleepBox.hidden = !supported;
+  if (!supported) return;
+
+  const running = seconds > 0;
+  ui.sleep.setAttribute('aria-pressed', String(running));
+
+  if (!running) {
+    ui.sleepLabel.textContent = 'Timer tidur';
+    return;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  ui.sleepLabel.textContent =
+    minutes > 0
+      ? `Berhenti dalam ${minutes}:${String(rest).padStart(2, '0')}`
+      : `Berhenti dalam ${rest} detik`;
 }
 
 let lastArtwork = null;
@@ -374,6 +411,23 @@ ui.dislike.addEventListener('click', () => {
 });
 
 ui.volumeScope.addEventListener('click', toggleVolumeScope);
+
+ui.sleep.addEventListener('click', () => {
+  buzz();
+  ui.sleepOptions.hidden = !ui.sleepOptions.hidden;
+});
+
+for (const option of ui.sleepOptions.querySelectorAll('.sleep-option')) {
+  option.addEventListener('click', () => {
+    const minutes = Number(option.dataset.minutes);
+    buzz();
+    ui.sleepOptions.hidden = true;
+
+    if (send('sleepTimer', minutes)) {
+      toast(minutes > 0 ? `Berhenti dalam ${minutes} menit` : 'Timer tidur dimatikan', 1800);
+    }
+  });
+}
 
 ui.mute.addEventListener('click', () => {
   buzz();
@@ -496,7 +550,49 @@ window.tautNative = {
   isConnected() {
     return socket?.readyState === WebSocket.OPEN && Boolean(state);
   },
+
+  /**
+   * Dipanggil dari kendali di layar kunci Android.
+   *
+   * Sengaja melewati tombol di layar: menekan tombol lewat kode akan ikut
+   * menjalankan getaran dan perubahan tampilan optimistik, padahal tidak ada
+   * yang sedang melihat layarnya.
+   */
+  command(action) {
+    if (action === 'playPause') optimistic({ playing: !state?.playing });
+    return send(action);
+  },
 };
+
+/**
+ * Laporkan keadaan ke aplikasi Android, supaya lagunya muncul di layar kunci.
+ *
+ * Hanya ada saat halaman ini dibuka di dalam aplikasi; lewat browser biasa
+ * jembatannya tidak ada dan seluruh bagian ini dilewati.
+ */
+function reportToAndroid() {
+  const bridge = window.TautAndroid;
+  if (!bridge) return;
+
+  try {
+    if (state) {
+      bridge.onState(
+        JSON.stringify({
+          title: state.title || '',
+          artist: state.artist || '',
+          artwork: state.artwork || '',
+          playing: Boolean(state.playing),
+          duration: state.duration ?? 0,
+          position: currentPosition(),
+        })
+      );
+    } else {
+      bridge.onDisconnected();
+    }
+  } catch {
+    /* jembatan hilang di tengah jalan; bukan alasan menghentikan remote */
+  }
+}
 
 // ------------------------------------------------------- layar tetap nyala
 

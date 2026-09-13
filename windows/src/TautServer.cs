@@ -26,6 +26,7 @@ namespace Taut
 
         private readonly int _port;
         private readonly Hub _hub = new Hub();
+        private readonly SleepTimer _sleepTimer;
 
         private TcpListener _listener;
         private Thread _acceptThread;
@@ -40,6 +41,26 @@ namespace Taut
         public TautServer(int port)
         {
             _port = port;
+
+            // Saat waktunya habis, perintah jeda dikirim seperti perintah dari
+            // HP mana pun — tidak ada jalur khusus yang perlu dipelihara.
+            _sleepTimer = new SleepTimer(() => PauseIfPlaying());
+            _sleepTimer.Changed += () => _hub.Republish();
+        }
+
+        /// <summary>
+        /// Jeda pemutar, tapi hanya kalau sedang berbunyi.
+        ///
+        /// Perintah playPause bersifat menjungkit. Mengirimnya saat musik sudah
+        /// berhenti justru MENYALAKAN musik di tengah malam — persis kebalikan
+        /// dari yang diminta timer tidur.
+        /// </summary>
+        private void PauseIfPlaying()
+        {
+            if (_hub.LastStateWasPlaying)
+            {
+                _hub.Dispatch("{\"type\":\"command\",\"action\":\"playPause\"}");
+            }
         }
 
         // -------------------------------------------------------- daur hidup
@@ -61,13 +82,14 @@ namespace Taut
             // Volume Windows bukan urusan ekstensi — ia tidak punya cara
             // mengetahuinya — jadi servernya yang menyisipkan ke setiap
             // keadaan yang disiarkan.
-            _hub.ServerFields = SystemVolumeFields;
+            _hub.ServerFields = ServerFields;
         }
 
         public void Stop()
         {
             _running = false;
 
+            _sleepTimer.Cancel();
             if (_discovery != null) { _discovery.Stop(); _discovery = null; }
             if (_pingTimer != null) { _pingTimer.Dispose(); _pingTimer = null; }
             try { if (_listener != null) _listener.Stop(); } catch { /* sudah berhenti */ }
@@ -283,13 +305,23 @@ namespace Taut
                  + ",\"systemMuted\":" + Json.Bool(muted);
         }
 
+        private string ServerFields()
+        {
+            return SystemVolumeFields()
+                 + ",\"sleepTimerSeconds\":" + _sleepTimer.SecondsLeft;
+        }
+
         /// <summary>
         /// Perintah yang dikerjakan server sendiri, bukan diteruskan ke
         /// ekstensi. Mengembalikan false kalau perintahnya bukan urusan server.
         /// </summary>
         private bool HandleLocally(string action, double? value)
         {
-            if (action == "systemVolume")
+            if (action == "sleepTimer")
+            {
+                _sleepTimer.Start(value ?? 0);
+            }
+            else if (action == "systemVolume")
             {
                 if (!value.HasValue) return true;
                 SystemVolume.Set((float)value.Value);
@@ -325,10 +357,14 @@ namespace Taut
 
             sb.Append("}");
 
-            if (!_hub.Dispatch(sb.ToString()))
-            {
-                socket.Send("{\"type\":\"host\",\"connected\":false}");
-            }
+            if (_hub.Dispatch(sb.ToString())) return;
+
+            // Tidak ada ekstensi yang menerima. Sebelum menyerah, coba tombol
+            // media Windows — kasar, tapi lebih baik daripada tombol yang
+            // tidak melakukan apa pun.
+            if (MediaKeys.TryHandle(action)) return;
+
+            socket.Send("{\"type\":\"host\",\"connected\":false}");
         }
 
         /// <summary>

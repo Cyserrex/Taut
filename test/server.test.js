@@ -171,9 +171,18 @@ async function main() {
   // Uji yang sama dijalankan terhadap dua server: yang ditulis dengan Node,
   // dan Taut.exe. Keduanya harus berbicara protokol yang persis sama, karena
   // ekstensi dan aplikasi Android tidak tahu sedang bicara dengan yang mana.
-  const useExe = process.argv.includes('--exe');
+  const exeIndex = process.argv.indexOf('--exe');
+  const useExe = exeIndex >= 0;
+
+  // Jalur boleh disebutkan setelah --exe, supaya salinan uji bisa diperiksa
+  // tanpa menimpa Taut.exe yang sedang dipakai.
+  const exePath =
+    useExe && process.argv[exeIndex + 1] && !process.argv[exeIndex + 1].startsWith('--')
+      ? path.resolve(process.argv[exeIndex + 1])
+      : path.join(ROOT, 'dist', 'Taut.exe');
+
   const [command, commandArgs] = useExe
-    ? [path.join(ROOT, 'dist', 'Taut.exe'), ['--console', '--port', String(PORT)]]
+    ? [exePath, ['--console', '--port', String(PORT)]]
     : [process.execPath, ['server/index.js', '--port', String(PORT)]];
 
   const server = spawn(command, commandArgs, {

@@ -487,6 +487,40 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* ------------------------------------------------------------ timer tidur */
+
+.sleep { flex: none; }
+
+.chip-sleep { width: 100%; }
+
+.sleep-options {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+  animation: rise 0.22s var(--ease) both;
+}
+
+.sleep-option {
+  min-height: 40px;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: transform 0.16s var(--ease), background 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.sleep-option:active { transform: scale(0.94); }
+
+.sleep-option-off {
+  color: var(--accent);
+  border-color: var(--accent-soft);
+}
+
 /* ---------------------------------------------------------------- extras */
 
 .extras {
@@ -564,6 +598,7 @@ body {
 @media (max-height: 560px) {
   .art-wrap { display: none; }
   .extras { display: none; }
+  .sleep { display: none; }
 }
 
 /* Layar lebar: tahan lebar agar tidak melar di tablet dan desktop. */

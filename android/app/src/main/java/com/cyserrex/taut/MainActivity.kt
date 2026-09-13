@@ -1,7 +1,10 @@
 package com.cyserrex.taut
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
@@ -10,9 +13,12 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
+import android.webkit.JavascriptInterface
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import com.cyserrex.taut.databinding.ActivityMainBinding
+import org.json.JSONObject
 
 /**
  * Layar remote.
@@ -36,6 +42,18 @@ class MainActivity : AppCompatActivity() {
     /** Menahan agar pencarian ulang tidak berjalan dua kali bersamaan. */
     private var recovering = false
 
+    private lateinit var nowPlaying: NowPlaying
+
+    /**
+     * Meminta izin notifikasi.
+     *
+     * Hasilnya sengaja tidak ditindaklanjuti: kalau ditolak, Taut tetap
+     * berfungsi penuh — hanya kendali di layar kunci yang tidak muncul, dan
+     * memaksa pengguna memutuskannya dua kali tidak mengubah apa pun.
+     */
+    private val askNotificationPermission =
+        registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = Prefs(this)
@@ -52,6 +70,10 @@ class MainActivity : AppCompatActivity() {
         // Remote sering diletakkan di meja sambil dilihat sesekali.
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
+        nowPlaying = NowPlaying(this) { command -> sendToRemote(command) }
+        nowPlaying.start()
+        requestNotificationPermission()
+
         setUpWebView()
         views.offlineRetry.setOnClickListener { recover() }
         views.offlineForget.setOnClickListener {
@@ -65,6 +87,9 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun setUpWebView() {
+        // Halaman remote melapor ke sini setiap kali keadaannya berubah.
+        views.web.addJavascriptInterface(Bridge(), "TautAndroid")
+
         views.web.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -162,9 +187,64 @@ class MainActivity : AppCompatActivity() {
     // ------------------------------------------------------------------ daur hidup
 
     override fun onDestroy() {
+        if (this::nowPlaying.isInitialized) nowPlaying.release()
+
         // Kalau perangkat belum dipasangkan, onCreate keluar lebih awal dan
         // tampilan tidak pernah dibuat.
         if (this::views.isInitialized) views.web.destroy()
         super.onDestroy()
+    }
+
+    // ------------------------------------------- jembatan dengan halaman remote
+
+    /**
+     * Dipanggil dari JavaScript di dalam halaman remote.
+     *
+     * Method ini berjalan di thread milik WebView, bukan thread tampilan, jadi
+     * apa pun yang menyentuh tampilan harus dipindahkan dulu.
+     */
+    private inner class Bridge {
+        @JavascriptInterface
+        fun onState(json: String) {
+            runOnUiThread {
+                try {
+                    val state = JSONObject(json)
+                    nowPlaying.update(
+                        title = state.optString("title", "Taut"),
+                        artist = state.optString("artist", ""),
+                        artworkUrl = state.optString("artwork", null),
+                        playing = state.optBoolean("playing", false),
+                        durationMs = (state.optDouble("duration", 0.0) * 1000).toLong(),
+                        positionMs = (state.optDouble("position", 0.0) * 1000).toLong()
+                    )
+                } catch (_: Exception) {
+                    // Bentuk keadaan berubah; tampilan lama tetap dibiarkan.
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun onDisconnected() {
+            runOnUiThread { nowPlaying.clear() }
+        }
+    }
+
+    /** Teruskan perintah dari layar kunci ke halaman remote. */
+    private fun sendToRemote(action: String) {
+        runOnUiThread {
+            if (!this::views.isInitialized) return@runOnUiThread
+            views.web.evaluateJavascript(
+                "window.tautNative && window.tautNative.command('$action')",
+                null
+            )
+        }
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+
+        val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        if (!granted) askNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 }

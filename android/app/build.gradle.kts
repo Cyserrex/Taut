@@ -13,8 +13,8 @@ android {
         // dan sudah mencakup hampir semua HP yang beredar.
         minSdk = 26
         targetSdk = 34
-        versionCode = 12
-        versionName = "1.5.1"
+        versionCode = 13
+        versionName = "1.6.0"
     }
 
     signingConfigs {
@@ -51,4 +51,11 @@ android {
 
 dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
+
+    // MediaSessionCompat dan notifikasi bergaya media — inilah yang membuat
+    // lagu muncul di layar kunci dengan tombolnya sendiri.
+    implementation("androidx.media:media:1.7.0")
+
+    // registerForActivityResult untuk meminta izin notifikasi.
+    implementation("androidx.activity:activity-ktx:1.9.3")
 }

@@ -22,6 +22,24 @@ namespace Taut
         private string _rawState;
 
         /// <summary>
+        /// Apakah laporan terakhir menyebut musik sedang berbunyi.
+        ///
+        /// Perintah playPause bersifat menjungkit, jadi apa pun yang ingin
+        /// "menghentikan" pemutar harus tahu keadaannya lebih dulu.
+        /// </summary>
+        public bool LastStateWasPlaying
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    return _rawState != null
+                        && _rawState.IndexOf("\"playing\":true", StringComparison.Ordinal) >= 0;
+                }
+            }
+        }
+
+        /// <summary>
         /// Medan tambahan milik server, disisipkan ke setiap keadaan yang
         /// disiarkan — volume Windows, misalnya, yang tidak diketahui ekstensi.
         ///

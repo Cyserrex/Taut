@@ -161,6 +161,7 @@ tanpa perlu memasang ulang APK.
 | Bisukan | |
 | Acak & ulangi | Ulangi berputar: mati → semua → satu lagu |
 | Suka / lewati | Tombol jempol milik YouTube Music |
+| Timer tidur | Berhenti dalam 15/30/45/60 menit; hitung mundurnya di PC |
 
 Judul, artis, sampul album, dan posisi lagu ikut tampil dan diperbarui langsung.
 
@@ -173,6 +174,16 @@ Volume Windows hanya bisa diatur `Taut.exe`; ekstensi browser tidak punya
 aksesnya. Kalau memakai server Node.js, yang tersedia cuma volume tab.
 
 Di aplikasi Android, tombol volume fisik HP ikut mengatur volume Windows.
+
+**Kendali di layar kunci.** Aplikasi Android menampilkan lagu yang sedang
+diputar di layar kunci dan panel notifikasi, lengkap dengan tombol
+putar/jeda/berikutnya — jadi mengganti lagu tidak perlu membuka kunci HP.
+Berlaku selama Taut masih terbuka.
+
+**Timer tidur.** Hitung mundurnya berjalan di PC, bukan di HP, jadi HP boleh
+ditutup atau kehabisan baterai. Kalau musiknya sudah berhenti sendiri saat
+waktunya habis, Taut membiarkannya — perintah putar/jeda bersifat menjungkit,
+dan menjungkitnya saat sudah diam justru menyalakan musik tengah malam.
 
 ---
 
@@ -201,6 +212,17 @@ Kalau tombol itu tidak muncul, ekstensimu dari sebelum v1.4.1 dan belum
 mendeklarasikan izin tersebut. Susun ulang dengan `npm run build:ext`, lalu muat
 ulang ekstensinya — atau [tandatangani ulang](#menandatangani-untuk-firefox)
 kalau memakai versi permanen.
+
+**Ekstensi rusak setelah YouTube Music berubah tampilan**
+
+Putar/jeda, berikutnya, dan sebelumnya tetap bekerja: `Taut.exe` mengirim
+tombol media Windows sebagai cadangan ketika tidak ada ekstensi yang menjawab.
+Kasar — Windows tidak tahu tab mana yang dimaksud, dan perintahnya bisa
+mendarat di pemutar lain yang terakhir berbunyi — tapi tidak bergantung pada
+struktur halaman YouTube sama sekali.
+
+Volume, geser posisi, suka, acak, dan ulangi tidak punya padanan tombol media;
+untuk itu ekstensinya memang harus diperbaiki.
 
 **Ikon ekstensi tetap bertanda `!`, popup bilang "Server Taut belum ditemukan"**
 Servernya belum jalan. Jalankan `npm start`, atau `npm run autostart` supaya
@@ -452,6 +474,12 @@ windows/       Taut.exe — server yang sama, ditulis ulang dengan C#
   Taut.ico     ikon berkas dan ikon tray, tujuh ukuran
 windows/src/SystemVolume.cs
                volume Windows lewat Core Audio API
+windows/src/SleepTimer.cs
+               timer tidur; hitung mundur di server
+windows/src/MediaKeys.cs
+               cadangan tombol media saat ekstensi tidak menjawab
+android/.../NowPlaying.kt
+               kendali di layar kunci lewat MediaSession
 server/        server penghubung — HTTP, WebSocket, QR, token
   ws.js        implementasi WebSocket (RFC 6455) tanpa dependensi
   qr.js        generator QR code tanpa dependensi

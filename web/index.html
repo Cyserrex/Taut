@@ -145,6 +145,26 @@
          ketuk untuk berpindah. -->
     <button class="volume-scope" id="volumeScope" type="button"></button>
 
+    <!-- Timer tidur. Seluruhnya dikerjakan server, jadi HP boleh ditutup
+         atau kehabisan baterai — hitung mundurnya tetap berjalan. -->
+    <div class="sleep">
+      <button class="chip chip-sleep" id="sleep" type="button" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"
+                fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        </svg>
+        <span id="sleepLabel">Timer tidur</span>
+      </button>
+
+      <div class="sleep-options" id="sleepOptions" hidden>
+        <button class="sleep-option" type="button" data-minutes="15">15 mnt</button>
+        <button class="sleep-option" type="button" data-minutes="30">30 mnt</button>
+        <button class="sleep-option" type="button" data-minutes="45">45 mnt</button>
+        <button class="sleep-option" type="button" data-minutes="60">1 jam</button>
+        <button class="sleep-option sleep-option-off" type="button" data-minutes="0">Matikan</button>
+      </div>
+    </div>
+
     <div class="extras">
       <button class="chip" id="like" type="button" aria-pressed="false">
         <svg viewBox="0 0 24 24" aria-hidden="true">
