@@ -164,11 +164,13 @@ tanpa perlu memasang ulang APK.
 
 Judul, artis, sampul album, dan posisi lagu ikut tampil dan diperbarui langsung.
 
-**Soal volume.** Slider di HP mengatur volume Windows, dan keterangan di
-bawahnya menyebutkan yang mana — ekstensi browser tidak bisa menyentuh volume
-sistem, jadi hanya `Taut.exe` yang mampu. Sebelumnya slider hanya mengatur
-elemen video di dalam tab: kalau volume Windows sedang di 20%, batas atasnya
-tetap 20%, dan dari HP tidak ada cara mengetahui itu.
+**Soal volume.** Ada dua volume yang berbeda, dan keduanya berguna: volume
+Windows menentukan seberapa keras PC bersuara, volume tab menyeimbangkan
+YouTube Music terhadap aplikasi lain. Satu slider dipakai bergantian — **ketuk
+keterangan di bawah slider** untuk berpindah, dan pilihanmu diingat.
+
+Volume Windows hanya bisa diatur `Taut.exe`; ekstensi browser tidak punya
+aksesnya. Kalau memakai server Node.js, yang tersedia cuma volume tab.
 
 Di aplikasi Android, tombol volume fisik HP ikut mengatur volume Windows.
 

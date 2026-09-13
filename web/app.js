@@ -88,14 +88,39 @@ function toast(message, ms = 2400) {
 }
 
 /**
- * Apakah slider volume sedang mengatur volume Windows.
+ * Volume mana yang sedang diatur slider.
  *
- * Server versi Windows bisa mengatur volume sistem; server Node tidak.
- * Membiarkan slider mengatur volume tab saat volume Windows tersedia bikin
- * bingung — plafonnya jadi tidak kelihatan dari HP.
+ * Keduanya berguna dan tidak saling menggantikan: volume Windows menentukan
+ * seberapa keras PC bersuara, volume tab menyeimbangkan YouTube Music
+ * terhadap aplikasi lain. Satu slider dipakai bergantian — pilihannya
+ * disimpan supaya tidak perlu diatur ulang tiap membuka remote.
  */
+let volumeScope = 'system';
+try {
+  const saved = localStorage.getItem('taut.volumeScope');
+  if (saved === 'tab' || saved === 'system') volumeScope = saved;
+} catch {
+  /* penyimpanan diblokir; pakai bawaan saja */
+}
+
 function usingSystemVolume() {
-  return Boolean(state?.systemVolumeAvailable);
+  return Boolean(state?.systemVolumeAvailable) && volumeScope === 'system';
+}
+
+function toggleVolumeScope() {
+  // Tanpa server yang mampu, tidak ada yang bisa ditukar.
+  if (!state?.systemVolumeAvailable) return;
+
+  volumeScope = volumeScope === 'system' ? 'tab' : 'system';
+  try {
+    localStorage.setItem('taut.volumeScope', volumeScope);
+  } catch {
+    /* tidak bisa disimpan; pilihannya tetap berlaku sesi ini */
+  }
+
+  buzz();
+  applyState(state);
+  toast(usingSystemVolume() ? 'Slider mengatur volume Windows' : 'Slider mengatur volume tab', 1600);
 }
 
 /** Nilai volume yang sedang ditampilkan slider, 0..1. */
@@ -237,6 +262,11 @@ function applyState(next) {
   }
   ui.volumeBox.classList.toggle('is-muted', currentlyMuted());
   ui.volumeScope.textContent = usingSystemVolume() ? 'Volume Windows' : 'Volume tab';
+  ui.volumeScope.hidden = !next.systemVolumeAvailable;
+  ui.volumeScope.setAttribute(
+    'aria-label',
+    usingSystemVolume() ? 'Ganti ke volume tab' : 'Ganti ke volume Windows'
+  );
 
   renderProgress();
 }
@@ -342,6 +372,8 @@ ui.dislike.addEventListener('click', () => {
   optimistic({ rating: state?.rating === 'dislike' ? 'none' : 'dislike' });
   send('dislike');
 });
+
+ui.volumeScope.addEventListener('click', toggleVolumeScope);
 
 ui.mute.addEventListener('click', () => {
   buzz();

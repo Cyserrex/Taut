@@ -23,7 +23,18 @@ const ROOT = path.join(HERE, '..');
 const SRC = path.join(HERE, 'src');
 const WEB = path.join(ROOT, 'web');
 const OUT_DIR = path.join(ROOT, 'dist');
-const OUT_EXE = path.join(OUT_DIR, 'Taut.exe');
+/**
+ * Keluaran bisa diarahkan ke berkas lain lewat --out.
+ *
+ * Windows mengunci .exe yang sedang berjalan, jadi tanpa ini setiap build
+ * memaksa menutup Taut yang sedang dipakai — termasuk saat hanya ingin
+ * mencoba perubahan kecil.
+ */
+const outIndex = process.argv.indexOf('--out');
+const OUT_EXE =
+  outIndex >= 0 && process.argv[outIndex + 1]
+    ? path.resolve(process.argv[outIndex + 1])
+    : path.join(OUT_DIR, 'Taut.exe');
 const ICON = path.join(HERE, 'Taut.ico');
 
 /** Versi Roslyn dipatok agar hasil build tidak berubah diam-diam. */
@@ -233,7 +244,8 @@ function build() {
   }
 
   const size = Math.round(fs.statSync(OUT_EXE).size / 1024);
-  console.log(`\n  Selesai: dist/Taut.exe (${size} KB)\n`);
+  const shown = path.relative(ROOT, OUT_EXE).replace(/\\/g, '/');
+  console.log(`\n  Selesai: ${shown} (${size} KB)\n`);
 }
 
 build();
