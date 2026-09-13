@@ -202,16 +202,20 @@ WiFi kantor memisahkan antar-perangkat (*AP isolation*), jadi tidak akan bisa.
 
 **Di Firefox: popup bilang "Server Taut belum ditemukan" padahal server jalan**
 
-Firefox menuntut izin terpisah untuk setiap alamat yang dihubungi ekstensi —
-termasuk server Taut di komputer kamu sendiri. Chrome tidak, jadi kekurangan ini
-tidak terlihat di sana.
+Perlu ekstensi **v1.6.1 atau lebih baru**. Versi sebelumnya tidak pernah bisa
+menghubungi server di Firefox, karena dua hal yang keduanya tidak ada di Chrome:
 
-Klik ikon Taut → **Berikan izin**, lalu muat ulang tab YouTube Music.
+1. Firefox menuntut izin terpisah untuk setiap alamat yang dihubungi ekstensi,
+   termasuk komputer sendiri — diperbaiki di v1.4.1
+2. CSP bawaan Manifest V3 di Firefox memuat `upgrade-insecure-requests`, yang
+   diam-diam menaikkan `ws://127.0.0.1` menjadi `wss://` — diperbaiki di v1.6.1
 
-Kalau tombol itu tidak muncul, ekstensimu dari sebelum v1.4.1 dan belum
-mendeklarasikan izin tersebut. Susun ulang dengan `npm run build:ext`, lalu muat
-ulang ekstensinya — atau [tandatangani ulang](#menandatangani-untuk-firefox)
-kalau memakai versi permanen.
+Gejala khasnya: baris **"tab YouTube Music aktif" hijau** sementara **"Server
+Taut belum ditemukan" merah selamanya**. Di konsol ekstensi terlihat pesan yang
+menyebut alamat `wss://` padahal kodenya menulis `ws://`.
+
+Setelah memasang versi baru, klik ikon Taut → **Berikan izin**, lalu muat ulang
+tab YouTube Music.
 
 **Ekstensi rusak setelah YouTube Music berubah tampilan**
 

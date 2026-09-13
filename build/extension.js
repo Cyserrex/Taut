@@ -72,6 +72,19 @@ function build() {
   ]);
   delete firefox.background.service_worker;
   firefox.background = { scripts: ['background.js'] };
+  // CSP bawaan Manifest V3 di Firefox memuat `upgrade-insecure-requests`,
+  // yang diam-diam menaikkan ws://127.0.0.1 menjadi wss://127.0.0.1. Server
+  // Taut tidak bicara TLS — ia hanya melayani jaringan rumah — jadi koneksinya
+  // gagal tanpa pernah sampai ke jaringan, dan pesan errornya menyebut alamat
+  // wss:// yang tidak pernah ditulis di kode mana pun.
+  //
+  // Chrome tidak menambahkan aturan itu, jadi kekurangan ini tidak terlihat
+  // di sana. Menyatakan CSP sendiri menggantikan yang bawaan seutuhnya;
+  // ketatnya sama, hanya tanpa peningkatan paksa itu.
+  firefox.content_security_policy = {
+    extension_pages: "script-src 'self'; object-src 'self';",
+  };
+
   firefox.browser_specific_settings = {
     gecko: {
       id: FIREFOX_ID,
