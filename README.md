@@ -243,15 +243,19 @@ Secret hanya ditampilkan sekali. Jangan menaruhnya di dalam repositori.
 **2. Tandatangani**
 
 ```bash
-WEB_EXT_API_KEY=user:xxxxx:xxx WEB_EXT_API_SECRET=xxxxx npm run sign:firefox
+npm run sign:firefox
 ```
 
-Di PowerShell:
+Taut akan menanyakan kedua nilainya satu per satu. Ketikan JWT secret sengaja
+tidak ditampilkan, dan tidak disimpan ke berkas mana pun — hanya diteruskan ke
+proses penandatanganan lewat environment, bukan lewat argumen perintah yang
+bisa tersangkut di riwayat shell.
 
-```powershell
-$env:WEB_EXT_API_KEY="user:xxxxx:xxx"
-$env:WEB_EXT_API_SECRET="xxxxx"
-npm run sign:firefox
+Kalau lebih suka lewat environment sendiri — misalnya di dalam skrip — Taut
+memakainya tanpa bertanya:
+
+```bash
+WEB_EXT_API_KEY=user:xxxxx:xxx WEB_EXT_API_SECRET=xxxxx npm run sign:firefox
 ```
 
 Hasilnya berkas `.xpi` di `dist/`.
