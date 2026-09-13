@@ -1,0 +1,115 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Uji server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Taut sengaja tanpa dependensi, jadi tidak ada langkah install.
+      - name: Jalankan uji
+        run: npm test
+
+  extension:
+    name: Ekstensi Chrome & Firefox
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Susun kedua varian
+        run: npm run build:ext
+
+      - name: Bungkus jadi zip
+        run: |
+          cd dist/chrome && zip -qr ../taut-chrome.zip . && cd ../..
+          cd dist/firefox && zip -qr ../taut-firefox.zip . && cd ../..
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ekstensi
+          path: dist/*.zip
+
+  android:
+    name: APK Android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Bangun APK
+        working-directory: android
+        run: gradle assembleRelease --no-daemon
+
+      - name: Beri nama sesuai versi
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/taut-v${VERSION}.apk"
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: dist/*.apk
+
+  release:
+    name: Terbitkan Release
+    needs: [test, extension, android]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Susun paket lengkap
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          mkdir -p dist "taut-$VERSION"
+          cp -r server extension web test package.json README.md LICENSE "taut-$VERSION/"
+          zip -qr "dist/taut-v${VERSION}.zip" "taut-$VERSION"
+          cp artifacts/apk/*.apk dist/
+          cp artifacts/ekstensi/*.zip dist/
+          ls -la dist
+
+      - name: Unggah ke Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/* --clobber

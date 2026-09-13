@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="taut_bg">#FF08080C</color>
+    <color name="taut_surface">#FF15151D</color>
+    <color name="taut_line">#FF27272F</color>
+    <color name="taut_text">#FFF4F4F7</color>
+    <color name="taut_text_dim">#FF9B9BA5</color>
+    <color name="taut_text_faint">#FF6A6A75</color>
+    <color name="taut_accent">#FFFF2E63</color>
+    <color name="taut_ok">#FF2FD27A</color>
+</resources>

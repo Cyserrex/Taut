@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Server Taut berjalan di jaringan rumah tanpa sertifikat HTTPS, jadi
+     lalu lintas biasa memang harus diizinkan. Tidak ada data yang keluar
+     dari jaringan lokal. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

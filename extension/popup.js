@@ -38,7 +38,40 @@ function refresh() {
     if (chrome.runtime.lastError || !status) return;
     render(status);
   });
+  checkSitePermission();
 }
+
+// --------------------------------------------------------------- izin situs
+
+const YTM_ORIGINS = { origins: ['https://music.youtube.com/*'] };
+const grantBox = document.getElementById('grantBox');
+const grantButton = document.getElementById('grant');
+
+/**
+ * Di Firefox, izin situs pada Manifest V3 bersifat opsional — ekstensi
+ * terpasang tapi belum boleh menyentuh YouTube Music sampai diizinkan.
+ * Chrome memberikannya di awal, jadi tombol ini tidak pernah muncul di sana.
+ */
+function checkSitePermission() {
+  if (!chrome.permissions?.contains) return;
+  chrome.permissions.contains(YTM_ORIGINS, (granted) => {
+    if (chrome.runtime.lastError) return;
+    grantBox.hidden = granted !== false;
+  });
+}
+
+grantButton?.addEventListener('click', () => {
+  chrome.permissions.request(YTM_ORIGINS, (granted) => {
+    if (chrome.runtime.lastError || !granted) return;
+    grantBox.hidden = true;
+    hint.textContent = 'Izin diberikan. Muat ulang tab YouTube Music kamu.';
+    // Skrip Taut baru ikut termuat setelah tab dibuka ulang.
+    chrome.tabs?.query({ url: 'https://music.youtube.com/*' }, (tabs) => {
+      if (chrome.runtime.lastError || !tabs) return;
+      for (const tab of tabs) chrome.tabs.reload(tab.id);
+    });
+  });
+});
 
 saveButton.addEventListener('click', () => {
   const port = Number(portInput.value);

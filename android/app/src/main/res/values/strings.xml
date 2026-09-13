@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Taut</string>
+
+    <string name="setup_title">Hubungkan ke PC</string>
+    <string name="setup_subtitle">Pastikan HP dan PC tersambung ke WiFi yang sama, lalu jalankan Taut di PC.</string>
+
+    <string name="scanning">Mencari PC di jaringan…</string>
+    <string name="scan_again">Cari lagi</string>
+    <string name="nothing_found">Belum ada PC yang ditemukan.</string>
+    <string name="nothing_found_hint">Pastikan Taut sudah berjalan di PC (npm start) dan Windows Firewall mengizinkannya di jaringan Private.</string>
+
+    <string name="manual_toggle">Masukkan alamat sendiri</string>
+    <string name="manual_host">Alamat IP PC</string>
+    <string name="manual_port">Port</string>
+    <string name="manual_connect">Sambungkan</string>
+
+    <string name="pin_title">Masukkan PIN</string>
+    <string name="pin_hint">PIN enam angka ada di terminal PC kamu, di bawah QR code.</string>
+    <string name="pin_submit">Pasangkan</string>
+    <string name="pin_wrong">PIN salah. Coba lihat lagi terminal di PC.</string>
+    <string name="pin_cancel">Batal</string>
+
+    <string name="reconnecting">PC berpindah alamat, mencari ulang…</string>
+    <string name="lost_server">Tidak bisa menghubungi PC</string>
+    <string name="lost_server_hint">Pastikan Taut masih berjalan di PC dan HP berada di WiFi yang sama.</string>
+    <string name="retry">Coba lagi</string>
+    <string name="forget">Lupakan PC ini</string>
+</resources>

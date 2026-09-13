@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Taut — Remote YouTube Music",
   "short_name": "Taut",
-  "version": "1.0.0",
-  "description": "Menghubungkan YouTube Music di Chrome dengan remote Taut di HP kamu lewat WiFi lokal.",
+  "version": "1.1.0",
+  "description": "Menghubungkan YouTube Music di browser dengan remote Taut di HP kamu lewat WiFi lokal.",
   "icons": {
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",
@@ -19,12 +19,12 @@
       "matches": ["https://music.youtube.com/*"],
       "js": ["content.js"],
       "run_at": "document_idle"
-    },
+    }
+  ],
+  "web_accessible_resources": [
     {
-      "matches": ["https://music.youtube.com/*"],
-      "js": ["page.js"],
-      "world": "MAIN",
-      "run_at": "document_idle"
+      "resources": ["page.js"],
+      "matches": ["https://music.youtube.com/*"]
     }
   ],
   "action": {

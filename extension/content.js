@@ -13,6 +13,20 @@
 
   let port = null;
 
+  /**
+   * Sisipkan page.js ke dalam halaman.
+   *
+   * Chrome punya `world: "MAIN"` di manifest, tapi Firefox baru
+   * mendukungnya belakangan. Menyisipkan tag <script> bekerja sama di
+   * keduanya dan di versi lama — satu jalur untuk semua browser.
+   */
+  function injectPageScript() {
+    const script = document.createElement('script');
+    script.src = chrome.runtime.getURL('page.js');
+    script.onload = () => script.remove();
+    (document.head || document.documentElement).appendChild(script);
+  }
+
   function openPort() {
     try {
       port = chrome.runtime.connect({ name: 'taut-ytm' });
@@ -50,5 +64,6 @@
     }
   });
 
+  injectPageScript();
   openPort();
 })();

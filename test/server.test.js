@@ -12,6 +12,7 @@
 const assert = require('assert');
 const crypto = require('crypto');
 const http = require('http');
+const dgram = require('dgram');
 const { spawn } = require('child_process');
 const path = require('path');
 
@@ -112,6 +113,28 @@ function openClient(query) {
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+function postJson(pathname, payload) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify(payload);
+    const req = http.request(
+      {
+        host: '127.0.0.1',
+        port: PORT,
+        path: pathname,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+      },
+      (res) => {
+        let raw = '';
+        res.on('data', (c) => (raw += c));
+        res.on('end', () => resolve({ status: res.statusCode, body: raw }));
+      }
+    );
+    req.on('error', reject);
+    req.end(body);
+  });
+}
+
 function fetchJson(pathname) {
   return new Promise((resolve, reject) => {
     http
@@ -129,8 +152,15 @@ function fetchJson(pathname) {
 async function main() {
   const server = spawn(process.execPath, ['server/index.js', '--port', String(PORT)], {
     cwd: ROOT,
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'ignore'],
   });
+
+  // PIN dibuat ulang tiap kali server dinyalakan, jadi satu-satunya cara
+  // mengetahuinya adalah membacanya dari banner — persis seperti yang
+  // dilakukan pengguna.
+  let banner = '';
+  server.stdout.on('data', (chunk) => (banner += chunk));
+  const pinFromBanner = () => banner.match(/Masukkan PIN ini saat diminta:\s*(\d{6})/)?.[1];
 
   // Tunggu sampai server benar-benar menerima koneksi.
   for (let i = 0; i < 60; i++) {
@@ -228,6 +258,66 @@ async function main() {
       passed++;
 
       remote.close();
+    }
+
+    // --- penemuan lewat UDP menjawab dengan identitas server
+    {
+      const socket = dgram.createSocket('udp4');
+      const replies = [];
+      socket.on('message', (raw) => {
+        try {
+          replies.push(JSON.parse(raw.toString('utf8')));
+        } catch {
+          /* bukan jawaban Taut */
+        }
+      });
+
+      await new Promise((done) => socket.bind(done));
+      socket.send('TAUT-DISCOVER', PORT, '127.0.0.1');
+      await wait(600);
+
+      const reply = replies.find((r) => r.app === 'taut');
+      assert.ok(reply, 'server harus menjawab pertanyaan penemuan');
+      assert.strictEqual(reply.port, PORT, 'jawaban memuat port yang benar');
+      assert.ok(reply.name, 'jawaban memuat nama komputer');
+      assert.ok(!('token' in reply), 'jawaban penemuan tidak boleh membocorkan token');
+
+      // Datagram asing diabaikan tanpa menjatuhkan server.
+      replies.length = 0;
+      socket.send('halo?', PORT, '127.0.0.1');
+      await wait(300);
+      assert.strictEqual(replies.length, 0, 'hanya pertanyaan yang sah yang dijawab');
+
+      socket.close();
+      passed++;
+    }
+
+    // --- pairing menukar PIN yang benar dengan token, dan menolak yang salah
+    {
+      const pin = pinFromBanner();
+      assert.ok(pin, 'banner terminal harus menampilkan PIN');
+
+      const wrong = await postJson('/api/pair', { pin: pin === '000000' ? '111111' : '000000' });
+      assert.strictEqual(wrong.status, 401, 'PIN salah ditolak');
+
+      const right = await postJson('/api/pair', { pin });
+      assert.strictEqual(right.status, 200, 'PIN benar diterima');
+      assert.strictEqual(JSON.parse(right.body).token, token, 'pairing mengembalikan token yang sama');
+      passed++;
+    }
+
+    // --- tebakan beruntun dihentikan
+    {
+      let locked = false;
+      for (let i = 0; i < 8; i++) {
+        const attempt = await postJson('/api/pair', { pin: '999999' });
+        if (attempt.status === 429) {
+          locked = true;
+          break;
+        }
+      }
+      assert.ok(locked, 'tebakan PIN beruntun harus dikunci sementara');
+      passed++;
     }
 
     // --- pesan sampah tidak menjatuhkan server

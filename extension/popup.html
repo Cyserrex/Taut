@@ -67,6 +67,13 @@
   <span id="tabText">Memeriksa tab…</span>
 </div>
 
+<!-- Firefox meminta izin situs secara terpisah; Chrome sudah memberikannya
+     saat ekstensi dipasang, jadi bagian ini tetap tersembunyi di sana. -->
+<div id="grantBox" hidden>
+  <label>Izin situs</label>
+  <button id="grant" type="button" style="width:100%">Izinkan akses YouTube Music</button>
+</div>
+
 <label for="port">Port server</label>
 <div class="port">
   <input id="port" type="number" min="1" max="65535" inputmode="numeric">

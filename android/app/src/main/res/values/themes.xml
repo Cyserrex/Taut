@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Taut selalu gelap: remote paling sering dipakai di ruangan remang,
+         dan mengikuti tema sistem justru membuat tampilannya tidak konsisten
+         dengan halaman remote yang dimuat di dalamnya. -->
+    <style name="Theme.Taut" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/taut_bg</item>
+        <item name="android:statusBarColor">@color/taut_bg</item>
+        <item name="android:navigationBarColor">@color/taut_bg</item>
+        <item name="android:textColor">@color/taut_text</item>
+        <item name="colorAccent">@color/taut_accent</item>
+    </style>
+</resources>

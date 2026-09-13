@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <!-- Kepala -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:contentDescription="@string/app_name"
+                android:src="@drawable/ic_launcher_foreground"
+                android:scaleX="2.1"
+                android:scaleY="2.1" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="@string/app_name"
+                android:textColor="@color/taut_text"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="26dp"
+            android:text="@string/setup_title"
+            android:textColor="@color/taut_text"
+            android:textSize="23sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/subtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:lineSpacingExtra="4dp"
+            android:text="@string/setup_subtitle"
+            android:textColor="@color/taut_text_dim"
+            android:textSize="14sp" />
+
+        <!-- ============================ pencarian ============================ -->
+
+        <LinearLayout
+            android:id="@+id/scanSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:id="@+id/scanningRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <ProgressBar
+                    android:id="@+id/spinner"
+                    style="?android:attr/progressBarStyleSmall"
+                    android:layout_width="18dp"
+                    android:layout_height="18dp" />
+
+                <TextView
+                    android:id="@+id/scanStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:text="@string/scanning"
+                    android:textColor="@color/taut_text_dim"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <!-- Tombol tiap PC yang ditemukan ditambahkan lewat kode -->
+            <LinearLayout
+                android:id="@+id/serverList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="vertical" />
+
+            <TextView
+                android:id="@+id/emptyHint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:lineSpacingExtra="3dp"
+                android:text="@string/nothing_found_hint"
+                android:textColor="@color/taut_text_faint"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/scanAgain"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/bg_button_quiet"
+                android:text="@string/scan_again"
+                android:textAllCaps="false"
+                android:textColor="@color/taut_text"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/manualToggle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:gravity="center"
+                android:padding="8dp"
+                android:text="@string/manual_toggle"
+                android:textColor="@color/taut_text_faint"
+                android:textSize="13sp" />
+
+            <!-- ------------------------ alamat manual ------------------------ -->
+
+            <LinearLayout
+                android:id="@+id/manualSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <EditText
+                    android:id="@+id/manualHost"
+                    android:layout_width="match_parent"
+                    android:layout_height="50dp"
+                    android:background="@drawable/bg_input"
+                    android:hint="@string/manual_host"
+                    android:importantForAutofill="no"
+                    android:inputType="text"
+                    android:paddingHorizontal="14dp"
+                    android:textColor="@color/taut_text"
+                    android:textColorHint="@color/taut_text_faint"
+                    android:textSize="15sp" />
+
+                <EditText
+                    android:id="@+id/manualPort"
+                    android:layout_width="match_parent"
+                    android:layout_height="50dp"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_input"
+                    android:hint="@string/manual_port"
+                    android:importantForAutofill="no"
+                    android:inputType="number"
+                    android:paddingHorizontal="14dp"
+                    android:text="8787"
+                    android:textColor="@color/taut_text"
+                    android:textColorHint="@color/taut_text_faint"
+                    android:textSize="15sp" />
+
+                <Button
+                    android:id="@+id/manualConnect"
+                    android:layout_width="match_parent"
+                    android:layout_height="50dp"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_button_quiet"
+                    android:text="@string/manual_connect"
+                    android:textAllCaps="false"
+                    android:textColor="@color/taut_text"
+                    android:textSize="15sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ============================== PIN ============================== -->
+
+        <LinearLayout
+            android:id="@+id/pinSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/pinTarget"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/taut_text_dim"
+                android:textSize="14sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:text="@string/pin_title"
+                android:textColor="@color/taut_text"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:lineSpacingExtra="3dp"
+                android:text="@string/pin_hint"
+                android:textColor="@color/taut_text_dim"
+                android:textSize="13.5sp" />
+
+            <EditText
+                android:id="@+id/pinInput"
+                android:layout_width="match_parent"
+                android:layout_height="58dp"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_input"
+                android:gravity="center"
+                android:hint="••••••"
+                android:importantForAutofill="no"
+                android:inputType="number"
+                android:letterSpacing="0.35"
+                android:maxLength="6"
+                android:textColor="@color/taut_text"
+                android:textColorHint="@color/taut_text_faint"
+                android:textSize="22sp" />
+
+            <TextView
+                android:id="@+id/pinError"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:textColor="@color/taut_accent"
+                android:textSize="13.5sp"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/pinSubmit"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/bg_button"
+                android:text="@string/pin_submit"
+                android:textAllCaps="false"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/pinCancel"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="8dp"
+                android:background="@android:color/transparent"
+                android:text="@string/pin_cancel"
+                android:textAllCaps="false"
+                android:textColor="@color/taut_text_faint"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

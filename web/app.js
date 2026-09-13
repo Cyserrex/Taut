@@ -402,6 +402,33 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
+// ------------------------------------------------- jembatan aplikasi Android
+
+/**
+ * Dipanggil dari kode Kotlin saat tombol volume fisik HP ditekan.
+ *
+ * Sengaja diletakkan di `window` alih-alih mendengarkan event keyboard:
+ * Android tidak meneruskan tombol volume ke halaman web, jadi aplikasi
+ * harus menangkapnya sendiri lalu memanggil ke sini.
+ */
+window.tautNative = {
+  nudgeVolume(step) {
+    if (!state) return false;
+    const next = Math.min(100, Math.max(0, Number(ui.volume.value) + Number(step)));
+    ui.volume.value = String(next);
+    ui.volumeValue.textContent = String(next);
+    paintRange(ui.volume);
+    ui.volumeBox.classList.toggle('is-muted', next === 0);
+    toast(next === 0 ? 'Volume PC dibisukan' : `Volume PC ${next}%`, 1200);
+    return send('volume', next / 100);
+  },
+
+  /** Aplikasi memakai ini untuk tahu apakah remote sudah benar-benar siap. */
+  isConnected() {
+    return socket?.readyState === WebSocket.OPEN && Boolean(state);
+  },
+};
+
 // ------------------------------------------------------- layar tetap nyala
 
 async function keepScreenAwake() {

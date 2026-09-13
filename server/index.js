@@ -17,6 +17,10 @@ const path = require('path');
 const ws = require('./ws');
 const qr = require('./qr');
 const config = require('./config');
+const discovery = require('./discovery');
+const pairing = require('./pairing');
+
+const VERSION = require('../package.json').version;
 
 const WEB_DIR = path.join(__dirname, '..', 'web');
 const PING_INTERVAL = 20_000;
@@ -158,19 +162,69 @@ function serveStatic(req, res) {
   });
 }
 
-const server = http.createServer((req, res) => {
+const json = (res, status, body) => {
+  res.writeHead(status, { 'Content-Type': MIME['.json'] });
+  res.end(JSON.stringify(body));
+};
+
+/** Baca badan permintaan JSON, dengan batas ukuran supaya tidak bisa dibanjiri. */
+function readJsonBody(req, limit = 4096) {
+  return new Promise((resolve) => {
+    let raw = '';
+    req.on('data', (chunk) => {
+      raw += chunk;
+      if (raw.length > limit) {
+        raw = '';
+        req.destroy();
+        resolve(null);
+      }
+    });
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(raw));
+      } catch {
+        resolve(null);
+      }
+    });
+    req.on('error', () => resolve(null));
+  });
+}
+
+const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
 
   if (url.pathname === '/api/info') {
-    res.writeHead(200, { 'Content-Type': MIME['.json'] });
-    res.end(
-      JSON.stringify({
-        name: 'Taut',
-        version: require('../package.json').version,
-        hostConnected: hub.hosts.size > 0,
-        remotes: hub.remotes.size,
-      })
-    );
+    json(res, 200, {
+      name: 'Taut',
+      version: VERSION,
+      hostConnected: hub.hosts.size > 0,
+      remotes: hub.remotes.size,
+    });
+    return;
+  }
+
+  // Aplikasi Android menukar PIN yang tampil di terminal dengan token.
+  if (url.pathname === '/api/pair') {
+    if (req.method !== 'POST') {
+      json(res, 405, { error: 'gunakan POST' });
+      return;
+    }
+
+    const body = await readJsonBody(req);
+    const address = (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+    const result = pairing.verify(body?.pin, address);
+
+    if (!result.ok) {
+      debug(`pairing gagal dari ${address}: ${result.reason}`);
+      json(res, result.reason === 'locked' ? 429 : 401, {
+        error: result.reason,
+        retryAfter: result.retryAfter,
+      });
+      return;
+    }
+
+    log(`  ✓ perangkat baru dipasangkan dari ${address}`);
+    json(res, 200, { token: config.loadOrCreateToken(), name: 'Taut', version: VERSION });
     return;
   }
 
@@ -286,7 +340,10 @@ function printBanner(token) {
     log(`  alamat lain:       ${addresses.slice(1).join(', ')}`);
   }
   log('');
-  log('  Berikutnya: pasang ekstensi Taut di Chrome, lalu buka music.youtube.com');
+  log(`  Pakai aplikasi Android? Aplikasi akan menemukan PC ini sendiri.`);
+  log(`  Masukkan PIN ini saat diminta:   ${pairing.currentPin()}`);
+  log('');
+  log('  Berikutnya: pasang ekstensi Taut di browser, lalu buka music.youtube.com');
   log('  Tekan Ctrl+C untuk berhenti.');
   log('');
 }
@@ -302,7 +359,10 @@ server.on('error', (err) => {
   throw err;
 });
 
-server.listen(PORT, '0.0.0.0', () => printBanner(token));
+server.listen(PORT, '0.0.0.0', () => {
+  discovery.start({ port: PORT, version: VERSION });
+  printBanner(token);
+});
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
