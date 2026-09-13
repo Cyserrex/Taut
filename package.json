@@ -12,7 +12,9 @@
     "dev": "node server/index.js --verbose",
     "test": "node test/qr.test.js && node test/server.test.js",
     "mock": "node test/mock-host.js",
-    "build:ext": "node build/extension.js"
+    "build:ext": "node build/extension.js",
+    "lint:ext": "node build/extension.js && npx --yes web-ext@8 lint --source-dir=dist/firefox --self-hosted",
+    "sign:firefox": "node build/extension.js && node build/sign-firefox.js"
   },
   "keywords": [
     "youtube-music",

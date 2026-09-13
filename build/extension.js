@@ -63,6 +63,12 @@ function build() {
     gecko: {
       id: FIREFOX_ID,
       strict_min_version: '115.0',
+      // Taut tidak mengumpulkan apa pun: tidak ada analitik, tidak ada kiriman
+      // ke luar jaringan lokal. Mozilla akan mewajibkan pernyataan ini, dan
+      // menyatakannya sekarang membuat halaman izin di Firefox jujur apa adanya.
+      data_collection_permissions: {
+        required: ['none'],
+      },
     },
   };
   writeManifest(firefoxDir, firefox);

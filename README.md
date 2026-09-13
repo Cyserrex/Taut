@@ -65,16 +65,23 @@ npm run build:ext
 3. **Load unpacked** → pilih folder `dist/chrome`
 
 **Firefox**
+
+Firefox menolak memasang ekstensi yang belum ditandatangani Mozilla, jadi
+**jangan** menyeret berkas zip ke `about:addons` — yang muncul hanya
+*"Pengaya ini tidak dapat dipasang karena belum diverifikasi"*. Pakai jalur
+pengembang:
+
 1. Buka `about:debugging#/runtime/this-firefox`
-2. **Load Temporary Add-on** → pilih `dist/firefox/manifest.json`
-3. Klik ikon Taut, lalu **Izinkan akses YouTube Music**
+2. **Load Temporary Add-on**
+3. Pilih **`dist/firefox/manifest.json`** — berkas manifest-nya, bukan folder,
+   bukan zip
+4. Klik ikon Taut, lalu **Izinkan akses YouTube Music**
+
+Ekstensi yang dimuat begini hilang setiap Firefox ditutup. Untuk yang menetap,
+lihat [Menandatangani untuk Firefox](#menandatangani-untuk-firefox) di bawah.
 
 Lalu buka **music.youtube.com** dan putar sebuah lagu. Ikon Taut akan
 kehilangan tanda `!` begitu tersambung.
-
-> Di Firefox, ekstensi yang dimuat lewat *Temporary Add-on* hilang saat
-> browser ditutup. Untuk permanen, ekstensi perlu ditandatangani Mozilla —
-> lihat [catatan Firefox](#catatan-firefox) di bawah.
 
 ### 3. Pilih remote di HP
 
@@ -171,11 +178,23 @@ secara khusus: *Settings → Apps → Special access → Install unknown apps*, 
 izinkan aplikasi tempat kamu mengunduh APK (biasanya Chrome atau Files).
 
 <a id="catatan-firefox"></a>
+**"Pengaya ini tidak dapat dipasang karena belum diverifikasi"**
+Sejak Firefox 48, ekstensi yang dipasang permanen wajib ditandatangani Mozilla.
+Pemeriksaan ini **tidak bisa dimatikan** di Firefox biasa maupun Beta —
+`xpinstall.signatures.required` di `about:config` diabaikan di sana. Mengganti
+nama `.zip` jadi `.xpi` juga tidak menolong, karena yang diperiksa isinya.
+
+Tiga jalan keluar:
+- **Sekarang juga** — muat lewat `about:debugging` seperti di atas. Hilang saat
+  Firefox ditutup.
+- **Menetap** — tandatangani sendiri lewat Mozilla; lihat bagian berikutnya.
+- **Menetap, tanpa akun** — pakai Firefox **Developer Edition**, **Nightly**,
+  atau **ESR**. Hanya di varian itu `xpinstall.signatures.required` bisa
+  disetel `false` lewat `about:config`.
+
 **Ekstensi Firefox hilang setelah browser ditutup**
-Itu memang perilaku *Load Temporary Add-on*. Ekstensi yang dipasang permanen
-harus ditandatangani Mozilla lebih dulu — proses yang perlu akun pengembang
-add-on. Untuk sekarang, muat ulang lewat `about:debugging` setiap kali Firefox
-dibuka, atau pakai Chrome yang mengizinkan *Load unpacked* secara permanen.
+Itu memang perilaku *Load Temporary Add-on*, bukan kerusakan. Pasang versi
+bertanda tangan kalau ingin menetap.
 
 ---
 
@@ -205,6 +224,59 @@ lokal dan tidak memakai enkripsi.
 
 ---
 
+## Menandatangani untuk Firefox
+
+Supaya Taut bisa dipasang menetap di Firefox biasa, berkasnya harus
+ditandatangani Mozilla. Kanal yang dipakai di sini **"unlisted"**: add-on
+ditandatangani tapi tidak dipublikasikan di addons.mozilla.org — tidak ada
+tinjauan manusia, tidak ada halaman publik, hanya berkas `.xpi` untukmu sendiri.
+Biasanya selesai dalam hitungan menit.
+
+**1. Ambil kredensial** (sekali saja)
+
+1. Buat akun gratis di [addons.mozilla.org](https://addons.mozilla.org/)
+2. Buka [halaman API Key](https://addons.mozilla.org/developers/addon/api/key/)
+3. **Generate new credentials** → simpan **JWT issuer** dan **JWT secret**
+
+Secret hanya ditampilkan sekali. Jangan menaruhnya di dalam repositori.
+
+**2. Tandatangani**
+
+```bash
+WEB_EXT_API_KEY=user:xxxxx:xxx WEB_EXT_API_SECRET=xxxxx npm run sign:firefox
+```
+
+Di PowerShell:
+
+```powershell
+$env:WEB_EXT_API_KEY="user:xxxxx:xxx"
+$env:WEB_EXT_API_SECRET="xxxxx"
+npm run sign:firefox
+```
+
+Hasilnya berkas `.xpi` di `dist/`.
+
+**3. Pasang**
+
+`about:addons` → ikon gerigi → **Install Add-on From File…** → pilih `.xpi` tadi.
+Kali ini Firefox menerimanya, dan ekstensinya tetap ada setelah browser ditutup.
+
+**Otomatis saat rilis**
+
+Simpan kredensial sebagai secret repositori bernama `AMO_API_KEY` dan
+`AMO_API_SECRET`. Setiap tag versi yang didorong akan menghasilkan `.xpi`
+bertanda tangan dan melampirkannya ke Release. Tanpa secret itu, langkah
+penandatanganan dilewati dan sisa build tetap jalan.
+
+> Setiap nomor versi hanya boleh diunggah sekali ke Mozilla. Kalau
+> penandatanganan ditolak karena versi ganda, naikkan `version` di
+> `package.json`.
+
+Sebelum menandatangani, `npm run lint:ext` menjalankan validator resmi Mozilla.
+Kalau ada error di situ, penandatanganan pasti ditolak.
+
+---
+
 ## Pengembangan
 
 ```bash
@@ -212,7 +284,12 @@ npm test          # uji generator QR dan integrasi server
 npm run dev       # server dengan log rinci
 npm run mock      # ekstensi tiruan, untuk mengutak-atik tampilan tanpa Chrome
 npm run build:ext # susun ekstensi untuk Chrome dan Firefox ke dist/
+npm run lint:ext  # periksa ekstensi dengan validator resmi Mozilla
 ```
+
+`lint:ext` dan `sign:firefox` memanggil `web-ext` lewat `npx`, jadi alat itu
+tidak pernah masuk ke `package.json`. Taut tetap bisa dijalankan tanpa
+`npm install`.
 
 `npm run mock` sangat membantu saat mengubah tampilan remote: ia berpura-pura
 jadi YouTube Music lengkap dengan lagu berjalan dan tanggapan atas perintah,

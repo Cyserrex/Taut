@@ -61,6 +61,14 @@ function checkSitePermission() {
 }
 
 grantButton?.addEventListener('click', () => {
+  // Firefox untuk Android belum punya permissions.request. Taut memang alat
+  // desktop — yang dikendalikan tab di komputer — tapi lebih baik memberi
+  // penjelasan daripada gagal diam-diam.
+  if (!chrome.permissions?.request) {
+    hint.textContent = 'Browser ini tidak mendukung pemberian izin situs dari popup.';
+    return;
+  }
+
   chrome.permissions.request(YTM_ORIGINS, (granted) => {
     if (chrome.runtime.lastError || !granted) return;
     grantBox.hidden = true;

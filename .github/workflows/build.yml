@@ -39,16 +39,43 @@ jobs:
       - name: Susun kedua varian
         run: npm run build:ext
 
+      # Validator resmi Mozilla. Kalau ini merah, penandatanganan pasti ditolak,
+      # jadi lebih baik ketahuan di sini daripada saat menerbitkan rilis.
+      - name: Periksa dengan validator Mozilla
+        run: npx --yes web-ext@8 lint --source-dir=dist/firefox --self-hosted
+
       - name: Bungkus jadi zip
         run: |
           cd dist/chrome && zip -qr ../taut-chrome.zip . && cd ../..
           cd dist/firefox && zip -qr ../taut-firefox.zip . && cd ../..
           ls -la dist
 
+      # Menghasilkan .xpi bertanda tangan yang bisa dipasang permanen di
+      # Firefox biasa. Dilewati kalau kredensial AMO belum disetel, supaya
+      # fork dan pull request tetap bisa dibangun.
+      - name: Tandatangani untuk Firefox
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_API_KEY }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_API_SECRET }}
+        run: |
+          if [ -z "$WEB_EXT_API_KEY" ] || [ -z "$WEB_EXT_API_SECRET" ]; then
+            echo "Kredensial AMO belum disetel — melewati penandatanganan Firefox."
+            echo "Setel secret AMO_API_KEY dan AMO_API_SECRET untuk mengaktifkannya."
+            exit 0
+          fi
+          npx --yes web-ext@8 sign \
+            --source-dir=dist/firefox \
+            --artifacts-dir=dist \
+            --channel=unlisted
+
       - uses: actions/upload-artifact@v4
         with:
           name: ekstensi
-          path: dist/*.zip
+          path: |
+            dist/*.zip
+            dist/*.xpi
+          if-no-files-found: error
 
   android:
     name: APK Android
@@ -107,6 +134,8 @@ jobs:
           zip -qr "dist/taut-v${VERSION}.zip" "taut-$VERSION"
           cp artifacts/apk/*.apk dist/
           cp artifacts/ekstensi/*.zip dist/
+          # .xpi hanya ada kalau kredensial AMO tersedia.
+          cp artifacts/ekstensi/*.xpi dist/ 2>/dev/null || true
           ls -la dist
 
       - name: Unggah ke Release
