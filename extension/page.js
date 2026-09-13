@@ -95,6 +95,38 @@
     }
   }
 
+  /**
+   * Volume sebagaimana dipahami YouTube Music, 0..1.
+   *
+   * TIDAK memakai element.volume, meski itu yang paling gampang dibaca:
+   * YouTube mengalikannya dengan faktor normalisasi kenyaringan per lagu.
+   * Menyetel 100% pada lagu dengan faktor 0,93 membuat element.volume berhenti
+   * di 0,93 — dan dari HP itu terlihat seperti slider yang macet, padahal
+   * volumenya memang sudah maksimum.
+   *
+   * getVolume() milik pemutar mengembalikan angka yang sama dengan slider di
+   * halaman YouTube Music, lepas dari koreksi itu.
+   */
+  function readVolume(element) {
+    const level = playerApi()?.getVolume?.();
+    if (typeof level === 'number' && Number.isFinite(level)) {
+      return Math.min(1, Math.max(0, level / 100));
+    }
+    return element.volume;
+  }
+
+  function readMuted(element) {
+    const api = playerApi();
+    if (api?.isMuted) {
+      try {
+        return Boolean(api.isMuted());
+      } catch {
+        /* pemutar belum siap */
+      }
+    }
+    return element.muted;
+  }
+
   function readState() {
     const element = video();
     if (!element) return null;
@@ -109,8 +141,8 @@
       playing: !element.paused && !element.ended,
       position: Number.isFinite(element.currentTime) ? element.currentTime : 0,
       duration: Number.isFinite(element.duration) ? element.duration : 0,
-      volume: element.volume,
-      muted: element.muted,
+      volume: readVolume(element),
+      muted: readMuted(element),
       rating: readRating(),
       shuffle: modes.shuffle,
       repeat: modes.repeat,
@@ -166,20 +198,34 @@
     volume(level) {
       const value = Math.min(1, Math.max(0, Number(level)));
       if (!Number.isFinite(value)) return;
+
+      const api = playerApi();
+      if (api?.setVolume) {
+        // Lewat API pemutar saja. Menyetel element.volume sekaligus membuat
+        // keduanya saling menimpa, dan yang terbaca kemudian bukan angka yang
+        // dikirim — karena YouTube menerapkan normalisasi kenyaringan di atasnya.
+        api.setVolume(Math.round(value * 100));
+        if (value > 0) api.unMute?.();
+        return;
+      }
+
       const element = video();
       if (!element) return;
       element.volume = value;
       if (value > 0) element.muted = false;
-      // Slider volume YouTube membaca dari API-nya sendiri, jadi ikut disetel.
-      playerApi()?.setVolume?.(Math.round(value * 100));
     },
 
     mute() {
+      const api = playerApi();
+      if (api?.isMuted && api.mute && api.unMute) {
+        if (api.isMuted()) api.unMute();
+        else api.mute();
+        return;
+      }
+
       const element = video();
       if (!element) return;
       element.muted = !element.muted;
-      if (element.muted) playerApi()?.mute?.();
-      else playerApi()?.unMute?.();
     },
 
     like() {

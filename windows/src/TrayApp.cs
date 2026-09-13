@@ -44,6 +44,13 @@ namespace Taut
             menu.Items.Add("Hubungkan HP…", null, (s, e) => ShowQr());
             menu.Items.Add("Buka remote di PC ini", null, (s, e) => OpenInBrowser());
             menu.Items.Add(new ToolStripSeparator());
+
+            var install = new ToolStripMenuItem("Pasang ekstensi browser");
+            install.DropDownItems.Add("Firefox…", null, (s, e) => InstallFirefox());
+            install.DropDownItems.Add("Chrome / Edge / Brave…", null, (s, e) => PrepareChrome());
+            menu.Items.Add(install);
+
+            menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(_autostartItem);
             menu.Items.Add("Perbaiki izin firewall…", null, (s, e) => Firewall.Repair());
             menu.Items.Add(new ToolStripSeparator());
@@ -133,6 +140,99 @@ namespace Taut
                 MessageBox.Show("Tidak bisa membuka browser.\n\n" + error.Message,
                     "Taut", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
+        }
+
+        // ----------------------------------------------- pemasangan ekstensi
+
+        private void InstallFirefox()
+        {
+            string detail;
+            var result = ExtensionInstaller.InstallInFirefox(out detail);
+
+            switch (result)
+            {
+                case ExtensionInstaller.Result.Ok:
+                    MessageBox.Show(
+                        "Firefox akan memasang ekstensi Taut versi "
+                            + (BuildInfo.BundledExtensionVersion ?? "?") + "."
+                            + VersionNote() + "\n\n" +
+                        "Setelah terpasang, klik ikon Taut di Firefox lalu\n" +
+                        "\u201cBerikan izin\u201d, lalu muat ulang tab YouTube Music.",
+                        "Taut", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    break;
+
+                case ExtensionInstaller.Result.NoBrowser:
+                    MessageBox.Show("Firefox tidak ditemukan di komputer ini.",
+                        "Taut", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    break;
+
+                case ExtensionInstaller.Result.NoPackage:
+                    MessageBox.Show(
+                        "Taut ini dibangun tanpa ekstensi Firefox.\n\n" +
+                        "Ekstensi Firefox harus ditandatangani Mozilla lebih dulu,\n" +
+                        "dan hanya pemilik akun yang bisa melakukannya.",
+                        "Taut", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    break;
+
+                default:
+                    MessageBox.Show("Tidak bisa memasang.\n\n" + detail,
+                        "Taut", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Chrome tidak bisa dipasangi ekstensi dari luar Web Store lewat cara
+        /// yang bisa diotomatiskan — itu justru pertahanannya terhadap program
+        /// yang menyusupkan ekstensi diam-diam. Jadi yang bisa dilakukan Taut
+        /// cuma menyiapkan foldernya dan menyebutkan langkah yang tersisa.
+        /// </summary>
+        private void PrepareChrome()
+        {
+            string detail;
+            var result = ExtensionInstaller.PrepareForChrome(out detail);
+
+            if (result != ExtensionInstaller.Result.Ok)
+            {
+                MessageBox.Show("Tidak bisa menyiapkan folder ekstensi.\n\n" + detail,
+                    "Taut", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                Clipboard.SetText(detail);
+            }
+            catch
+            {
+                // Papan klip dikunci program lain; jalurnya tetap tertulis di bawah.
+            }
+
+            MessageBox.Show(
+                "Folder ekstensi sudah dibuka, dan jalurnya sudah disalin.\n\n" +
+                "Di Chrome:\n" +
+                "   1.  Buka  chrome://extensions\n" +
+                "   2.  Nyalakan \u201cDeveloper mode\u201d di pojok kanan atas\n" +
+                "   3.  Klik \u201cLoad unpacked\u201d, lalu tempel jalur ini:\n\n" +
+                detail + "\n\n" +
+                "Chrome memang tidak mengizinkan program lain memasang ekstensi\n" +
+                "sendiri — itu yang menjaga ekstensi tidak bisa disusupkan\n" +
+                "tanpa sepengetahuanmu.",
+                "Taut — pasang di Chrome", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        /// <summary>
+        /// Sebutkan kalau ekstensi yang dibawa tertinggal dari versi Taut.
+        ///
+        /// Ekstensi Firefox harus ditandatangani Mozilla, dan itu tidak bisa
+        /// dilakukan saat build — jadi berkasnya bisa tertinggal satu-dua versi
+        /// tanpa ada yang menyadarinya.
+        /// </summary>
+        private static string VersionNote()
+        {
+            string bundled = BuildInfo.BundledExtensionVersion;
+            if (string.IsNullOrEmpty(bundled) || bundled == BuildInfo.Version) return "";
+
+            return "\n(Taut sendiri versi " + BuildInfo.Version + ".)";
         }
 
         private void ToggleAutostart()

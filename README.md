@@ -165,7 +165,13 @@ tanpa perlu memasang ulang APK.
 
 Judul, artis, sampul album, dan posisi lagu ikut tampil dan diperbarui langsung.
 
-**Soal volume.** Ada dua volume yang berbeda, dan keduanya berguna: volume
+**Soal volume.** Volume tab dibaca dari API pemutar YouTube, bukan dari elemen
+`<video>`. YouTube mengalikan volume elemen itu dengan faktor normalisasi
+kenyaringan per lagu, sehingga menyetel 100% pada lagu dengan faktor 0,93
+membuatnya berhenti di 93 — yang dari HP terlihat seperti slider macet, padahal
+volumenya memang sudah maksimum.
+
+Ada dua volume yang berbeda, dan keduanya berguna: volume
 Windows menentukan seberapa keras PC bersuara, volume tab menyeimbangkan
 YouTube Music terhadap aplikasi lain. Satu slider dipakai bergantian — **ketuk
 keterangan di bawah slider** untuk berpindah, dan pilihanmu diingat.

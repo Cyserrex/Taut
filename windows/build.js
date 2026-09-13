@@ -16,6 +16,7 @@
 const { execFileSync, spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
+const zlib = require('zlib');
 const path = require('path');
 
 const HERE = __dirname;
@@ -36,6 +37,16 @@ const OUT_EXE =
     ? path.resolve(process.argv[outIndex + 1])
     : path.join(OUT_DIR, 'Taut.exe');
 const ICON = path.join(HERE, 'Taut.ico');
+
+/**
+ * Ekstensi Firefox yang sudah ditandatangani Mozilla.
+ *
+ * Firefox menolak memasang ekstensi tak bertanda tangan, dan penandatanganan
+ * hanya bisa dilakukan pemilik akun AMO. Berkasnya karena itu ikut disimpan di
+ * repositori, bukan dibuat saat build — dan wajib diganti setiap kali ekstensi
+ * berubah, kalau tidak Taut menawarkan versi yang sudah kedaluwarsa.
+ */
+const XPI = path.join(HERE, 'Taut.xpi');
 
 /** Versi Roslyn dipatok agar hasil build tidak berubah diam-diam. */
 const ROSLYN_VERSION = '4.8.0';
@@ -126,6 +137,110 @@ function collectWebResources() {
   return resources;
 }
 
+/**
+ * Ekstensi browser, ikut ditanam supaya Taut bisa memasangnya sendiri.
+ *
+ * Chrome tidak bisa memasang ekstensi lewat baris perintah, jadi yang
+ * ditanam adalah berkas mentahnya — Taut mengeluarkannya ke sebuah folder,
+ * lalu pengguna memuatnya lewat "Load unpacked".
+ */
+function collectExtensionResources() {
+  const resources = [];
+
+  // Selalu disusun ulang, bukan hanya kalau foldernya belum ada. Hasil lama
+  // dari versi sebelumnya akan ikut tertanam tanpa ada yang menyadarinya —
+  // dan itu sudah terjadi sekali: Taut 1.6.1 membawa ekstensi 1.6.0.
+  const chromeDir = path.join(OUT_DIR, 'chrome');
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'build', 'extension.js')], {
+    stdio: 'ignore',
+  });
+  if (built.status !== 0 || !fs.existsSync(chromeDir)) fail('Gagal menyusun ekstensi.');
+
+  const walk = (dir, prefix) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full, `${prefix}${entry.name}.`);
+      else resources.push(`/resource:${full},Taut.chrome.${prefix}${entry.name}`);
+    }
+  };
+  walk(chromeDir, '');
+
+  if (fs.existsSync(XPI)) {
+    const bundled = xpiVersion();
+    const wanted = require(path.join(ROOT, 'package.json')).version;
+
+    // Jebakan yang tidak bersuara: Taut memasang ekstensi versi lama tanpa
+    // ada yang menyadarinya, sampai seseorang bingung kenapa perbaikan
+    // terbaru tidak berlaku.
+    if (bundled && bundled !== wanted) {
+      console.log(`  ! windows/Taut.xpi berisi versi ${bundled}, sementara Taut ${wanted}`);
+      console.log('    Tandatangani ulang dan ganti berkasnya sebelum merilis.');
+    }
+
+    resources.push(`/resource:${XPI},Taut.Taut.xpi`);
+  } else {
+    console.log('  (windows/Taut.xpi tidak ada — tombol pasang Firefox dilewati)');
+  }
+
+  return resources;
+}
+
+/**
+ * Baca versi dari manifest di dalam .xpi.
+ *
+ * Dibaca lewat direktori pusat zip, bukan header di depan tiap berkas.
+ * Berkas yang ditulis secara mengalir menyimpan ukurannya SESUDAH datanya,
+ * dan meninggalkan nol di header depan — percobaan pertama memakai header itu
+ * gagal tanpa suara, yang justru lebih buruk daripada tidak memeriksa sama
+ * sekali: peringatannya tidak pernah muncul dan semua terlihat beres.
+ */
+function xpiVersion() {
+  try {
+    const raw = fs.readFileSync(XPI);
+    const wanted = Buffer.from('manifest.json');
+
+    // Direktori pusat ditemukan lewat penanda akhir di ekor berkas.
+    let end = -1;
+    for (let i = raw.length - 22; i >= 0; i--) {
+      if (raw.readUInt32LE(i) === 0x06054b50) {
+        end = i;
+        break;
+      }
+    }
+    if (end < 0) return null;
+
+    let offset = raw.readUInt32LE(end + 16);
+
+    while (offset + 46 <= raw.length && raw.readUInt32LE(offset) === 0x02014b50) {
+      const method = raw.readUInt16LE(offset + 10);
+      const compressed = raw.readUInt32LE(offset + 20);
+      const nameLength = raw.readUInt16LE(offset + 28);
+      const extraLength = raw.readUInt16LE(offset + 30);
+      const commentLength = raw.readUInt16LE(offset + 32);
+      const localOffset = raw.readUInt32LE(offset + 42);
+
+      const name = raw.subarray(offset + 46, offset + 46 + nameLength);
+      if (name.equals(wanted)) {
+        // Panjang nama dan extra di header lokal bisa berbeda dari yang di
+        // direktori pusat, jadi keduanya dibaca ulang dari sana.
+        const localNameLength = raw.readUInt16LE(localOffset + 26);
+        const localExtraLength = raw.readUInt16LE(localOffset + 28);
+        const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+        const data = raw.subarray(dataStart, dataStart + compressed);
+
+        const json =
+          method === 0 ? data.toString('utf8') : zlib.inflateRawSync(data).toString('utf8');
+        return JSON.parse(json).version;
+      }
+
+      offset += 46 + nameLength + extraLength + commentLength;
+    }
+  } catch {
+    // Bentuk berkasnya di luar dugaan; lebih baik diam daripada salah lapor.
+  }
+  return null;
+}
+
 // ------------------------------------------------------------------ build
 
 /**
@@ -138,6 +253,11 @@ function writeBuildInfo(outDir) {
   const pkg = require(path.join(ROOT, 'package.json'));
   const version = pkg.version;
   const file = path.join(outDir, 'BuildInfo.cs');
+
+  // Versi .xpi yang ikut tertanam ditulis juga, supaya Taut bisa menyebutkannya
+  // saat menawarkan pemasangan. Kalau tertinggal dari versi Taut, pengguna
+  // melihatnya sendiri alih-alih menebak kenapa perbaikan terbaru tidak ada.
+  const bundledXpi = fs.existsSync(XPI) ? xpiVersion() : null;
 
   // Metadata versi ikut ditulis di sini. Berkas .exe tanpa keterangan apa pun
   // tampil sebagai "Unknown" di dialog Windows dan di Task Manager — dan
@@ -162,6 +282,9 @@ function writeBuildInfo(outDir) {
     '    internal static class BuildInfo',
     '    {',
     `        public const string Version = "${version}";`,
+    `        public const string BundledExtensionVersion = ${
+      bundledXpi ? `"${bundledXpi}"` : 'null'
+    };`,
     '    }',
     '}',
     '',
@@ -234,7 +357,7 @@ function build() {
 
   if (sources.length === 0) fail('Tidak ada berkas sumber di windows/src.');
 
-  const resources = collectWebResources();
+  const resources = collectWebResources().concat(collectExtensionResources());
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
   const generatedDir = path.join(OUT_DIR, 'generated');
