@@ -194,12 +194,24 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
 
   if (url.pathname === '/api/info') {
-    json(res, 200, {
+    const info = {
       name: 'Taut',
       version: VERSION,
       hostConnected: hub.hosts.size > 0,
       remotes: hub.remotes.size,
-    });
+    };
+
+    // PIN dan token hanya untuk yang sudah berada di komputer ini. Server bisa
+    // berjalan tersembunyi tanpa terminal, jadi harus ada cara melihat keduanya
+    // kembali — tapi bukan lewat jaringan, karena justru itu yang dilindungi.
+    if (isLoopback(req.socket.remoteAddress)) {
+      info.pin = pairing.currentPin();
+      info.addresses = lanAddresses();
+      info.token = config.loadOrCreateToken();
+      info.port = PORT;
+    }
+
+    json(res, 200, info);
     return;
   }
 

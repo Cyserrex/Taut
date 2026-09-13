@@ -51,6 +51,10 @@ npm start
 Terminal menampilkan QR code, alamat, dan **PIN enam angka**.
 Biarkan jendela ini terbuka selama kamu memakai Taut.
 
+> **Tidak mau mengetik ini tiap kali?** Jalankan `npm run autostart` sekali,
+> dan Taut menyala sendiri di latar belakang setiap Windows login — tanpa
+> jendela terminal sama sekali. Lihat [Menyalakan Taut otomatis](#menyalakan-taut-otomatis).
+
 ### 2. Pasang ekstensi di browser
 
 Susun dulu kedua varian:
@@ -151,9 +155,13 @@ Windows Defender Firewall → *Allow an app through firewall*.
 Pastikan juga HP dan PC benar-benar di WiFi yang sama. WiFi tamu dan beberapa
 WiFi kantor memisahkan antar-perangkat (*AP isolation*), jadi tidak akan bisa.
 
-**Ikon ekstensi tetap bertanda `!`**
-Server belum jalan, atau portnya berbeda. Klik ikon Taut untuk melihat status
-dan mengubah port.
+**Ikon ekstensi tetap bertanda `!`, popup bilang "Server Taut belum ditemukan"**
+Servernya belum jalan. Jalankan `npm start`, atau `npm run autostart` supaya
+tidak perlu memikirkannya lagi. Kalau server sudah jalan tapi popup masih
+merah, portnya berbeda — ubah di popup itu juga.
+
+Ekstensi mencoba menyambung ulang sendiri tiap setengah menit, jadi tunggu
+sebentar sebelum menganggapnya gagal.
 
 **Port 8787 sudah dipakai**
 
@@ -224,6 +232,49 @@ lokal dan tidak memakai enkripsi.
 
 ---
 
+## Menyalakan Taut otomatis
+
+Ekstensi browser tidak bisa membuka port dan menunggu koneksi masuk — itu batas
+platform, bukan pilihan rancangan. Jadi harus ada sesuatu di PC yang
+mendengarkan. Yang bisa dihilangkan adalah keharusan mengetik `npm start`.
+
+```bash
+npm run autostart
+```
+
+Taut langsung menyala, dan ikut menyala setiap kali Windows login. Tidak ada
+jendela terminal, tidak ada yang perlu diingat.
+
+```bash
+npm run autostart:off      # copot, tidak lagi menyala otomatis
+npm run autostart:status    # lihat keadaannya dan letak berkas log
+```
+
+Karena tidak ada terminal, QR code dan PIN tidak terlihat. Tanyakan kapan saja:
+
+```bash
+npm run info
+```
+
+Perintah itu menampilkan QR code, alamat, dan PIN dari server yang sedang
+berjalan. Keterangan rahasia hanya dijawab untuk permintaan dari komputer itu
+sendiri — dari jaringan, `/api/info` tetap hanya memberi nama dan versi.
+
+**Cara kerjanya.** Windows tidak punya cara langsung menjalankan program konsol
+tanpa memunculkan jendelanya, jadi dipakai dua lapis: `Taut.cmd` menjalankan
+server sambil mencatat keluarannya ke berkas log, dan `Taut.vbs` di folder
+Startup menjalankan `Taut.cmd` dengan jendela tersembunyi. Keduanya menyimpan
+jalur `node` secara penuh, karena PATH saat login bisa berbeda dari PATH di
+terminalmu — terutama kalau node dipasang lewat nvm.
+
+Kalau Taut tidak jalan setelah login, berkas log inilah satu-satunya petunjuk;
+`npm run autostart:status` menunjukkan letaknya.
+
+Di Linux dan macOS pemasang ini tidak berlaku; buat unit `systemd --user` atau
+LaunchAgent yang menjalankan `node server/index.js`.
+
+---
+
 ## Menandatangani untuk Firefox
 
 Supaya Taut bisa dipasang menetap di Firefox biasa, berkasnya harus
@@ -289,6 +340,7 @@ npm run dev       # server dengan log rinci
 npm run mock      # ekstensi tiruan, untuk mengutak-atik tampilan tanpa Chrome
 npm run build:ext # susun ekstensi untuk Chrome dan Firefox ke dist/
 npm run lint:ext  # periksa ekstensi dengan validator resmi Mozilla
+npm run info      # QR code, alamat, dan PIN dari server yang sedang berjalan
 ```
 
 `lint:ext` dan `sign:firefox` memanggil `web-ext` lewat `npx`, jadi alat itu
@@ -307,11 +359,12 @@ server/        server penghubung — HTTP, WebSocket, QR, token
   qr.js        generator QR code tanpa dependensi
   discovery.js menjawab pertanyaan penemuan lewat UDP
   pairing.js   menukar PIN dengan token
+  info.js      tampilkan QR dan PIN dari server yang sedang berjalan
 extension/     ekstensi browser (satu sumber, dua varian)
   page.js      satu-satunya berkas yang menyentuh YouTube Music
 web/           halaman remote untuk HP (PWA)
 android/       aplikasi Android — pembungkus WebView + penemuan PC
-build/         penyusun varian ekstensi
+build/         penyusun varian ekstensi, penandatangan, pemasang autostart
 test/          uji otomatis + ekstensi tiruan
 ```
 

@@ -13,6 +13,7 @@ const assert = require('assert');
 const crypto = require('crypto');
 const http = require('http');
 const dgram = require('dgram');
+const os = require('os');
 const { spawn } = require('child_process');
 const path = require('path');
 
@@ -135,10 +136,20 @@ function postJson(pathname, payload) {
   });
 }
 
-function fetchJson(pathname) {
+/** Alamat IPv4 non-loopback pertama, kalau ada — untuk menguji sisi jaringan. */
+function lanAddress() {
+  for (const entries of Object.values(os.networkInterfaces())) {
+    for (const entry of entries || []) {
+      if (entry.family === 'IPv4' && !entry.internal) return entry.address;
+    }
+  }
+  return null;
+}
+
+function fetchJson(pathname, host = '127.0.0.1') {
   return new Promise((resolve, reject) => {
     http
-      .get({ host: '127.0.0.1', port: PORT, path: pathname }, (res) => {
+      .get({ host, port: PORT, path: pathname }, (res) => {
         let body = '';
         res.on('data', (c) => (body += c));
         res.on('end', () => resolve({ status: res.statusCode, body }));
@@ -258,6 +269,22 @@ async function main() {
       passed++;
 
       remote.close();
+    }
+
+    // --- PIN dan token hanya boleh terlihat dari komputer itu sendiri
+    {
+      const local = JSON.parse((await fetchJson('/api/info')).body);
+      assert.ok(local.pin, 'dari loopback, PIN ikut disertakan');
+      assert.strictEqual(local.token, token, 'dari loopback, token ikut disertakan');
+
+      const address = lanAddress();
+      if (address) {
+        const remote = JSON.parse((await fetchJson('/api/info', address)).body);
+        assert.ok(!('pin' in remote), 'PIN tidak boleh terkirim ke jaringan');
+        assert.ok(!('token' in remote), 'token tidak boleh terkirim ke jaringan');
+        assert.strictEqual(remote.name, 'Taut', 'keterangan umum tetap dijawab');
+      }
+      passed++;
     }
 
     // --- penemuan lewat UDP menjawab dengan identitas server
