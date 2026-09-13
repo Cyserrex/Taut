@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0a0a0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Taut">
+<title>Taut — Remote YouTube Music</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Latar yang ikut warna sampul lagu -->
+<div class="backdrop" id="backdrop" aria-hidden="true"></div>
+<div class="backdrop-veil" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M9 18V5l10-2v13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="6.5" cy="18" r="2.8" fill="currentColor"/>
+      <circle cx="16.5" cy="16" r="2.8" fill="currentColor"/>
+    </svg>
+    <span class="brand-name">Taut</span>
+  </div>
+  <button class="status" id="status" type="button" aria-live="polite">
+    <span class="status-dot" id="statusDot"></span>
+    <span class="status-text" id="statusText">Menyambung…</span>
+  </button>
+</header>
+
+<main class="stage">
+
+  <!-- Tampilan saat ekstensi belum tersambung -->
+  <section class="empty" id="empty" hidden>
+    <div class="empty-art">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M9 18V5l10-2v13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="6.5" cy="18" r="2.6" fill="currentColor"/>
+        <circle cx="16.5" cy="16" r="2.6" fill="currentColor"/>
+      </svg>
+    </div>
+    <h2 class="empty-title" id="emptyTitle">Menunggu YouTube Music</h2>
+    <p class="empty-hint" id="emptyHint">
+      Buka <strong>music.youtube.com</strong> di Chrome pada PC kamu,
+      lalu putar sebuah lagu.
+    </p>
+  </section>
+
+  <!-- Pemutar -->
+  <section class="player" id="player" hidden>
+
+    <div class="art-wrap">
+      <img class="art" id="art" alt="" decoding="async">
+      <div class="art-fallback" id="artFallback">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 18V5l10-2v13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="6.5" cy="18" r="2.6" fill="currentColor"/>
+          <circle cx="16.5" cy="16" r="2.6" fill="currentColor"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="meta">
+      <div class="meta-title" id="title">—</div>
+      <div class="meta-artist" id="artist"></div>
+    </div>
+
+    <div class="seek">
+      <input class="range range-seek" id="seek" type="range" min="0" max="1000" value="0"
+             aria-label="Posisi lagu">
+      <div class="seek-times">
+        <span id="elapsed">0:00</span>
+        <span id="duration">0:00</span>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="ctl ctl-sm" id="shuffle" type="button" aria-label="Acak" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+
+      <button class="ctl ctl-md" id="prev" type="button" aria-label="Lagu sebelumnya">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M19 20 9 12l10-8v16zM5 4v16" fill="currentColor" stroke="currentColor"
+                stroke-width="2" stroke-linejoin="round"/>
+        </svg>
+      </button>
+
+      <button class="ctl ctl-play" id="play" type="button" aria-label="Putar">
+        <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M7 4.5 19.5 12 7 19.5z" fill="currentColor" stroke="currentColor"
+                stroke-width="2" stroke-linejoin="round"/>
+        </svg>
+        <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M8 4.5v15M16 4.5v15" fill="none" stroke="currentColor"
+                stroke-width="3.4" stroke-linecap="round"/>
+        </svg>
+      </button>
+
+      <button class="ctl ctl-md" id="next" type="button" aria-label="Lagu berikutnya">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 4l10 8-10 8V4zM19 4v16" fill="currentColor" stroke="currentColor"
+                stroke-width="2" stroke-linejoin="round"/>
+        </svg>
+      </button>
+
+      <button class="ctl ctl-sm" id="repeat" type="button" aria-label="Ulangi" aria-pressed="false">
+        <svg class="icon-repeat" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M17 2l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="repeat-one" id="repeatOne" hidden>1</span>
+      </button>
+    </div>
+
+    <div class="volume">
+      <button class="ctl ctl-xs" id="mute" type="button" aria-label="Bisukan">
+        <svg class="icon-vol" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/>
+          <path class="wave wave-1" d="M16 9.5a3.5 3.5 0 0 1 0 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path class="wave wave-2" d="M18.5 7a7 7 0 0 1 0 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <svg class="icon-muted" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/>
+          <path d="M16.5 9.5l5 5M21.5 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <input class="range range-volume" id="volume" type="range" min="0" max="100" value="70"
+             aria-label="Volume">
+      <span class="volume-value" id="volumeValue">70</span>
+    </div>
+
+    <div class="extras">
+      <button class="chip" id="like" type="button" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M7 22V10l5-8a2.5 2.5 0 0 1 2.4 3.2L13.4 9H19a2.5 2.5 0 0 1 2.4 3.2l-2 7A3 3 0 0 1 16.5 22H7zM2 10h5v12H2z"
+                fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        </svg>
+        <span>Suka</span>
+      </button>
+      <button class="chip" id="dislike" type="button" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M17 2v12l-5 8a2.5 2.5 0 0 1-2.4-3.2L10.6 15H5a2.5 2.5 0 0 1-2.4-3.2l2-7A3 3 0 0 1 7.5 2H17zM22 14h-5V2h5z"
+                fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        </svg>
+        <span>Lewati</span>
+      </button>
+    </div>
+
+  </section>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

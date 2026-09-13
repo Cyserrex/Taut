@@ -1,0 +1,555 @@
+/* Taut — tampilan remote.
+   Dirancang untuk dipegang satu tangan: kontrol utama berada di paruh bawah
+   layar, target sentuh minimal 44px, dan tidak ada teks kecil yang penting. */
+
+:root {
+  color-scheme: dark;
+
+  --bg: #08080c;
+  --surface: rgba(255, 255, 255, 0.06);
+  --surface-strong: rgba(255, 255, 255, 0.12);
+  --line: rgba(255, 255, 255, 0.1);
+
+  --text: #f4f4f7;
+  --text-dim: rgba(244, 244, 247, 0.62);
+  --text-faint: rgba(244, 244, 247, 0.38);
+
+  --accent: #ff2e63;
+  --accent-soft: rgba(255, 46, 99, 0.18);
+  --ok: #2fd27a;
+  --warn: #ffb020;
+
+  --radius: 20px;
+  --radius-lg: 28px;
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; }
+
+/* Aturan bawaan browser untuk [hidden] hanyalah `display: none` tanpa
+   penegasan, jadi setiap `display: flex` di bawah akan mengalahkannya dan
+   panel yang disembunyikan tetap terlihat. */
+[hidden] { display: none !important; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overflow: hidden;
+  overscroll-behavior: none;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------------------------------------------------------- latar dinamis */
+
+.backdrop,
+.backdrop-veil {
+  position: fixed;
+  inset: -20%;
+  z-index: -2;
+  pointer-events: none;
+}
+
+.backdrop {
+  background-size: cover;
+  background-position: center;
+  filter: blur(72px) saturate(1.7);
+  opacity: 0;
+  transform: scale(1.15);
+  transition: opacity 0.9s var(--ease), background-image 0.4s linear;
+}
+
+.backdrop.is-visible { opacity: 0.5; }
+
+.backdrop-veil {
+  z-index: -1;
+  background:
+    radial-gradient(120% 80% at 50% 0%, transparent 0%, rgba(8, 8, 12, 0.55) 55%, var(--bg) 100%),
+    linear-gradient(to bottom, rgba(8, 8, 12, 0.35), rgba(8, 8, 12, 0.9));
+}
+
+/* ---------------------------------------------------------------- topbar */
+
+.topbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: calc(var(--safe-top) + 14px) 18px 8px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.02em;
+}
+
+.brand-mark {
+  width: 22px;
+  height: 22px;
+  color: var(--accent);
+}
+
+.brand-name {
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.status:active { background: var(--surface-strong); }
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  transition: background 0.3s var(--ease), box-shadow 0.3s var(--ease);
+}
+
+.status[data-state="online"] .status-dot {
+  background: var(--ok);
+  box-shadow: 0 0 0 3px rgba(47, 210, 122, 0.16);
+}
+
+.status[data-state="waiting"] .status-dot {
+  background: var(--warn);
+  box-shadow: 0 0 0 3px rgba(255, 176, 32, 0.16);
+  animation: pulse 1.8s var(--ease) infinite;
+}
+
+.status[data-state="offline"] .status-dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ----------------------------------------------------------------- stage */
+
+.stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 20px calc(var(--safe-bottom) + 18px);
+}
+
+/* ----------------------------------------------------------- empty state */
+
+.empty {
+  margin: auto;
+  max-width: 320px;
+  text-align: center;
+  animation: rise 0.5s var(--ease) both;
+}
+
+.empty-art {
+  width: 84px;
+  height: 84px;
+  margin: 0 auto 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 26px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text-faint);
+}
+
+.empty-art svg { width: 38px; height: 38px; }
+
+.empty-title {
+  margin: 0 0 10px;
+  font-size: 19px;
+  font-weight: 640;
+}
+
+.empty-hint {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.empty-hint strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------- player */
+
+.player {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 18px;
+  animation: rise 0.45s var(--ease) both;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Sampul harus benar-benar persegi. aspect-ratio saja tidak cukup di dalam
+   flex column — tinggi ikut ditarik kotak induk — jadi lebarnya dibatasi
+   terhadap tinggi layar dan kotaknya tidak diizinkan tumbuh sendiri. */
+.art-wrap {
+  position: relative;
+  flex: 0 0 auto;
+  align-self: center;
+  width: min(100%, 48vh);
+  aspect-ratio: 1;
+  margin-top: 6px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: 0 28px 60px -22px rgba(0, 0, 0, 0.85);
+}
+
+.art,
+.art-fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.art {
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.45s var(--ease);
+}
+
+.art.is-loaded { opacity: 1; }
+
+.art-fallback {
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+}
+
+/* Begitu sampul asli termuat, ikon cadangan tidak boleh menutupinya. */
+.art.is-loaded ~ .art-fallback { display: none; }
+
+.art-fallback svg { width: 26%; height: 26%; }
+
+/* --------------------------------------------------------------- metadata */
+
+.meta {
+  flex: none;
+  text-align: center;
+  min-height: 52px;
+}
+
+.meta-title {
+  font-size: 19px;
+  font-weight: 640;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta-artist {
+  margin-top: 3px;
+  color: var(--text-dim);
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ------------------------------------------------------------------ seek */
+
+.seek { flex: none; }
+
+.seek-times {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Slider dibuat seragam lintas browser: track tipis, thumb besar. */
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 24px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.range::-webkit-slider-runnable-track {
+  height: 5px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--accent) 0%,
+    var(--accent) var(--fill, 0%),
+    rgba(255, 255, 255, 0.15) var(--fill, 0%),
+    rgba(255, 255, 255, 0.15) 100%
+  );
+}
+
+.range::-moz-range-track {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.range::-moz-range-progress {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
+  margin-top: -5px;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  transition: transform 0.18s var(--ease);
+}
+
+.range::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.range:active::-webkit-slider-thumb { transform: scale(1.35); }
+.range:active::-moz-range-thumb { transform: scale(1.35); }
+
+/* -------------------------------------------------------------- controls */
+
+.controls {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.ctl {
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+  transition: transform 0.16s var(--ease), background 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.ctl:active { transform: scale(0.88); }
+
+.ctl svg {
+  width: 100%;
+  height: 100%;
+  padding: 22%;
+}
+
+.ctl-xs { width: 40px; height: 40px; color: var(--text-dim); }
+.ctl-sm { width: 46px; height: 46px; color: var(--text-dim); }
+.ctl-md { width: 58px; height: 58px; }
+
+.ctl-play {
+  width: 72px;
+  height: 72px;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 12px 30px -10px rgba(255, 46, 99, 0.75);
+}
+
+.ctl-play svg { padding: 26%; }
+
+/* Ikon play/pause bertukar tempat sesuai keadaan. */
+.icon-pause,
+.icon-muted { display: none; }
+
+.player.is-playing .icon-play { display: none; }
+.player.is-playing .icon-pause { display: block; }
+
+.volume.is-muted .icon-vol { display: none; }
+.volume.is-muted .icon-muted { display: block; }
+
+/* Tombol toggle yang sedang aktif */
+.ctl[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.repeat-one {
+  position: absolute;
+  right: 6px;
+  bottom: 5px;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- volume */
+
+.volume {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.volume .range { flex: 1; }
+
+.volume-value {
+  width: 28px;
+  text-align: right;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- extras */
+
+.extras {
+  flex: none;
+  display: flex;
+  gap: 10px;
+}
+
+.chip {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: transform 0.16s var(--ease), background 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.chip svg { width: 18px; height: 18px; }
+.chip:active { transform: scale(0.96); }
+
+.chip[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent-soft);
+  background: var(--accent-soft);
+}
+
+/* ----------------------------------------------------------------- toast */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 24px);
+  transform: translate(-50%, 20px);
+  max-width: calc(100vw - 40px);
+  padding: 11px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(22, 22, 28, 0.94);
+  backdrop-filter: blur(12px);
+  color: var(--text);
+  font-size: 13.5px;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.28s var(--ease), transform 0.28s var(--ease);
+  z-index: 10;
+}
+
+.toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* --------------------------------------------------------- penyesuaian */
+
+/* Layar pendek: kecilkan sampul supaya kontrol tetap muat tanpa scroll. */
+@media (max-height: 700px) {
+  .player { gap: 13px; }
+  .art-wrap { width: min(100%, 40vh); border-radius: 22px; }
+  .ctl-play { width: 64px; height: 64px; }
+  .ctl-md { width: 52px; height: 52px; }
+  .meta-title { font-size: 17px; }
+}
+
+@media (max-height: 560px) {
+  .art-wrap { display: none; }
+  .extras { display: none; }
+}
+
+/* Layar lebar: tahan lebar agar tidak melar di tablet dan desktop. */
+@media (min-width: 620px) {
+  .topbar,
+  .stage { width: 100%; max-width: 520px; margin-inline: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

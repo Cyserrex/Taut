@@ -1,0 +1,29 @@
+{
+  "name": "taut",
+  "version": "1.0.0",
+  "description": "Kendalikan YouTube Music di browser PC dari HP kamu lewat WiFi lokal.",
+  "main": "server/index.js",
+  "type": "commonjs",
+  "bin": {
+    "taut": "server/index.js"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js --verbose",
+    "test": "node test/qr.test.js && node test/server.test.js",
+    "mock": "node test/mock-host.js"
+  },
+  "keywords": [
+    "youtube-music",
+    "remote",
+    "websocket",
+    "chrome-extension",
+    "lan"
+  ],
+  "author": "Cyserrex",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {}
+}
