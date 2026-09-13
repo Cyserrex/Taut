@@ -70,25 +70,4 @@ object Pairing {
             connection?.disconnect()
         }
     }
-
-    /**
-     * Periksa apakah server di alamat ini masih hidup — dipakai sebelum
-     * memuat remote, supaya bisa mencari ulang kalau IP-nya sudah berpindah.
-     */
-    fun probe(host: String, port: Int, onDone: (Boolean) -> Unit) {
-        Thread {
-            val alive = try {
-                val connection = (URL("http://$host:$port/api/info").openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 1500
-                    readTimeout = 1500
-                }
-                val ok = connection.responseCode == 200
-                connection.disconnect()
-                ok
-            } catch (_: Exception) {
-                false
-            }
-            Handler(Looper.getMainLooper()).post { onDone(alive) }
-        }.start()
-    }
 }
