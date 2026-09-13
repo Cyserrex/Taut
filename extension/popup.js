@@ -27,7 +27,7 @@ function render(status) {
     hint.textContent = 'Semua siap. Kendalikan dari HP lewat halaman Taut.';
   } else if (!status.connected) {
     hint.innerHTML =
-      'Jalankan <code>npm start</code> di folder Taut pada PC ini, lalu scan QR code yang muncul di terminal.';
+      'Jalankan <b>Taut.exe</b> di PC ini. Ikonnya muncul di area notifikasi, dekat jam.';
   } else {
     hint.textContent = 'Buka music.youtube.com di tab baru, lalu putar sebuah lagu.';
   }
