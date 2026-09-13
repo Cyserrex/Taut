@@ -43,7 +43,16 @@ function refresh() {
 
 // --------------------------------------------------------------- izin situs
 
-const YTM_ORIGINS = { origins: ['https://music.youtube.com/*'] };
+/**
+ * Izin yang diminta diambil dari manifest, bukan ditulis ulang di sini.
+ *
+ * Varian Firefox butuh izin tambahan untuk menghubungi server di komputer
+ * sendiri; varian Chrome tidak. Membaca dari manifest membuat keduanya
+ * meminta tepat apa yang dideklarasikannya — dan meminta izin yang tidak
+ * dideklarasikan akan ditolak browser.
+ */
+const REQUIRED = { origins: chrome.runtime.getManifest().host_permissions || [] };
+
 const grantBox = document.getElementById('grantBox');
 const grantButton = document.getElementById('grant');
 
@@ -54,7 +63,7 @@ const grantButton = document.getElementById('grant');
  */
 function checkSitePermission() {
   if (!chrome.permissions?.contains) return;
-  chrome.permissions.contains(YTM_ORIGINS, (granted) => {
+  chrome.permissions.contains(REQUIRED, (granted) => {
     if (chrome.runtime.lastError) return;
     grantBox.hidden = granted !== false;
   });
@@ -69,7 +78,7 @@ grantButton?.addEventListener('click', () => {
     return;
   }
 
-  chrome.permissions.request(YTM_ORIGINS, (granted) => {
+  chrome.permissions.request(REQUIRED, (granted) => {
     if (chrome.runtime.lastError || !granted) return;
     grantBox.hidden = true;
     hint.textContent = 'Izin diberikan. Muat ulang tab YouTube Music kamu.';

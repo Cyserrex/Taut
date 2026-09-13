@@ -57,6 +57,19 @@ function build() {
   copyDir(SOURCE, firefoxDir);
 
   const firefox = JSON.parse(JSON.stringify(base));
+
+  // Firefox menuntut izin host untuk setiap alamat yang dihubungi ekstensi,
+  // termasuk WebSocket ke komputer sendiri. Chrome tidak — dan karena Chrome
+  // tidak mengeluh, kekurangan ini tidak terlihat sampai dicoba di Firefox.
+  //
+  // Pola pencocokan mengabaikan nomor port, jadi satu entri mencakup port
+  // berapa pun yang dipakai server.
+  firefox.host_permissions = base.host_permissions.concat([
+    'http://127.0.0.1/*',
+    'http://localhost/*',
+    'ws://127.0.0.1/*',
+    'ws://localhost/*',
+  ]);
   delete firefox.background.service_worker;
   firefox.background = { scripts: ['background.js'] };
   firefox.browser_specific_settings = {

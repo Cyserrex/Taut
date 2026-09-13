@@ -179,6 +179,19 @@ Windows Defender Firewall → *Allow an app through firewall*.
 Pastikan juga HP dan PC benar-benar di WiFi yang sama. WiFi tamu dan beberapa
 WiFi kantor memisahkan antar-perangkat (*AP isolation*), jadi tidak akan bisa.
 
+**Di Firefox: popup bilang "Server Taut belum ditemukan" padahal server jalan**
+
+Firefox menuntut izin terpisah untuk setiap alamat yang dihubungi ekstensi —
+termasuk server Taut di komputer kamu sendiri. Chrome tidak, jadi kekurangan ini
+tidak terlihat di sana.
+
+Klik ikon Taut → **Berikan izin**, lalu muat ulang tab YouTube Music.
+
+Kalau tombol itu tidak muncul, ekstensimu dari sebelum v1.4.1 dan belum
+mendeklarasikan izin tersebut. Susun ulang dengan `npm run build:ext`, lalu muat
+ulang ekstensinya — atau [tandatangani ulang](#menandatangani-untuk-firefox)
+kalau memakai versi permanen.
+
 **Ikon ekstensi tetap bertanda `!`, popup bilang "Server Taut belum ditemukan"**
 Servernya belum jalan. Jalankan `npm start`, atau `npm run autostart` supaya
 tidak perlu memikirkannya lagi. Kalau server sudah jalan tapi popup masih
