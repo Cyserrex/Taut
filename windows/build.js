@@ -185,7 +185,23 @@ function build() {
   console.log(`  Menyusun ${sources.length} berkas sumber dan ${resources.length} sumber daya...`);
   const result = spawnSync(csc, args, { stdio: 'inherit' });
 
-  if (result.status !== 0) fail('Kompilasi gagal.');
+  if (result.status !== 0) {
+    // Penyebab paling sering, dan paling membingungkan karena pesan compiler
+    // hanya menyebut "cannot write to output file".
+    const running = spawnSync('tasklist', ['/FI', 'IMAGENAME eq Taut.exe'], {
+      encoding: 'utf8',
+    });
+    const locked = (running.stdout || '').includes('Taut.exe');
+
+    fail(
+      'Kompilasi gagal.',
+      locked
+        ? '    Taut.exe sedang berjalan dan mengunci berkasnya.\n' +
+          '    Tutup lewat ikon di area notifikasi, atau:\n' +
+          '      taskkill /IM Taut.exe /F'
+        : undefined
+    );
+  }
 
   const size = Math.round(fs.statSync(OUT_EXE).size / 1024);
   console.log(`\n  Selesai: dist/Taut.exe (${size} KB)\n`);

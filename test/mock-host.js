@@ -83,7 +83,7 @@ function connect(onOpen, onMessage) {
     },
   });
 
-  request.on('upgrade', (_res, socket) => {
+  request.on('upgrade', (_res, socket, head) => {
     const send = (object) => {
       const payload = Buffer.from(JSON.stringify(object), 'utf8');
       const mask = crypto.randomBytes(4);
@@ -103,7 +103,7 @@ function connect(onOpen, onMessage) {
     };
 
     let buffer = Buffer.alloc(0);
-    socket.on('data', (chunk) => {
+    const consume = (chunk) => {
       buffer = Buffer.concat([buffer, chunk]);
       // Server tidak pernah mask, dan pesannya selalu kecil.
       while (buffer.length >= 2) {
@@ -128,7 +128,12 @@ function connect(onOpen, onMessage) {
           socket.write(Buffer.from([0x8a, 0x00])); // balas ping
         }
       }
-    });
+    };
+
+    socket.on('data', consume);
+
+    // Sisa byte yang terlanjur terbaca bersama handshake ada di `head`.
+    if (head && head.length) consume(head);
 
     socket.on('close', () => {
       console.log('  terputus dari server, mencoba lagi…');

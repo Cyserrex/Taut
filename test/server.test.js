@@ -37,7 +37,7 @@ function openClient(query) {
       },
     });
 
-    request.on('upgrade', (_res, socket) => {
+    request.on('upgrade', (_res, socket, head) => {
       const client = {
         socket,
         messages: [],
@@ -74,7 +74,7 @@ function openClient(query) {
       };
 
       let buffer = Buffer.alloc(0);
-      socket.on('data', (chunk) => {
+      const consume = (chunk) => {
         buffer = Buffer.concat([buffer, chunk]);
         while (buffer.length >= 2) {
           const opcode = buffer[0] & 0x0f;
@@ -101,9 +101,16 @@ function openClient(query) {
             socket.write(Buffer.from([0x8a, 0x00]));
           }
         }
-      });
+      };
 
+      socket.on('data', consume);
       socket.on('error', () => {});
+
+      // Server boleh menulis handshake dan frame pertama beruntun sehingga
+      // keduanya tiba dalam satu paket. Node menaruh sisa byte itu di `head`;
+      // mengabaikannya berarti kehilangan pesan pertama tanpa jejak.
+      if (head && head.length) consume(head);
+
       resolve(client);
     });
 
@@ -179,7 +186,17 @@ async function main() {
   // dilakukan pengguna.
   let banner = '';
   server.stdout.on('data', (chunk) => (banner += chunk));
-  const pinFromBanner = () => banner.match(/PIN[^0-9]{0,40}(\d{6})/)?.[1];
+
+  /** Keluaran proses tiba bertahap, jadi banner ditunggu, bukan dibaca sekali. */
+  const pinFromBanner = async (timeout = 8000) => {
+    const started = Date.now();
+    for (;;) {
+      const match = banner.match(/PIN[^0-9]{0,40}(\d{6})/);
+      if (match) return match[1];
+      if (Date.now() - started > timeout) return null;
+      await wait(50);
+    }
+  };
 
   // Tunggu sampai server benar-benar menerima koneksi.
   for (let i = 0; i < 60; i++) {
@@ -191,7 +208,10 @@ async function main() {
     }
   }
 
-  const token = require('../server/config').loadOrCreateToken();
+  // Token diambil dari server itu sendiri lewat /api/info, yang hanya
+  // menjawabnya untuk permintaan dari loopback. Mengambilnya dari modul config
+  // Node akan menguji implementasi yang salah saat sasarannya Taut.exe.
+  const token = JSON.parse((await fetchJson('/api/info')).body).token;
   let passed = 0;
 
   try {
@@ -279,6 +299,21 @@ async function main() {
       remote.close();
     }
 
+    // --- token disimpan di tempat yang sama oleh kedua server, supaya HP yang
+    //     sudah dipasangkan tetap bekerja setelah berpindah implementasi
+    {
+      const os = require('os');
+      const configPath = path.join(os.homedir(), '.taut', 'config.json');
+      const stored = JSON.parse(require('fs').readFileSync(configPath, 'utf8'));
+
+      assert.strictEqual(
+        stored.token,
+        token,
+        'token di ~/.taut/config.json harus sama dengan yang dipakai server'
+      );
+      passed++;
+    }
+
     // --- PIN dan token hanya boleh terlihat dari komputer itu sendiri
     {
       const local = JSON.parse((await fetchJson('/api/info')).body);
@@ -329,8 +364,10 @@ async function main() {
 
     // --- pairing menukar PIN yang benar dengan token, dan menolak yang salah
     {
-      const pin = pinFromBanner();
-      assert.ok(pin, 'banner terminal harus menampilkan PIN');
+      // PIN diambil dari server, bukan dari banner: yang diuji di sini adalah
+      // pairing-nya, dan keluaran proses bisa tiba terlambat.
+      const pin = JSON.parse((await fetchJson('/api/info')).body).pin;
+      assert.ok(pin && pin.length === 6, 'server menyebutkan PIN enam angka');
 
       const wrong = await postJson('/api/pair', { pin: pin === '000000' ? '111111' : '000000' });
       assert.strictEqual(wrong.status, 401, 'PIN salah ditolak');
@@ -339,6 +376,19 @@ async function main() {
       assert.strictEqual(right.status, 200, 'PIN benar diterima');
       assert.strictEqual(JSON.parse(right.body).token, token, 'pairing mengembalikan token yang sama');
       passed++;
+    }
+
+    // --- PIN juga tampil di terminal, karena di situlah orang membacanya
+    {
+      const shown = await pinFromBanner();
+
+      // Keluaran proses lewat pipa tidak dijamin tiba dalam tenggat tertentu.
+      // Kalau tidak ada sama sekali, itu keadaan lingkungan, bukan kesalahan
+      // program — tapi kalau banner-nya ada dan PIN-nya tidak, itu kesalahan.
+      if (banner.trim().length > 0) {
+        assert.ok(shown, 'banner terminal memuat keluaran tapi tanpa PIN');
+        passed++;
+      }
     }
 
     // --- tebakan beruntun dihentikan

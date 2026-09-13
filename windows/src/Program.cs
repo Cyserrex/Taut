@@ -135,6 +135,10 @@ namespace Taut
             Console.WriteLine("  Tekan Ctrl+C untuk berhenti.");
             Console.WriteLine();
 
+            // Keluaran yang dialihkan ke pipa ikut tertahan di penyangga;
+            // tanpa ini pembacanya bisa menunggu lama tanpa sebab.
+            Console.Out.Flush();
+
             var stop = new ManualResetEvent(false);
             Console.CancelKeyPress += (s, e) =>
             {

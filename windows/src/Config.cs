@@ -27,8 +27,22 @@ namespace Taut
         {
             get
             {
-                return Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".taut");
+                // USERPROFILE didahulukan supaya jalurnya sama persis dengan
+                // yang dipakai server Node (os.homedir). SpecialFolder.UserProfile
+                // bisa mengembalikan string kosong di konteks non-interaktif —
+                // dan berkas token yang mendarat di folder berbeda membuat HP
+                // yang sudah dipasangkan tiba-tiba ditolak.
+                string home = Environment.GetEnvironmentVariable("USERPROFILE");
+                if (string.IsNullOrEmpty(home))
+                {
+                    home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                }
+                if (string.IsNullOrEmpty(home))
+                {
+                    home = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                }
+
+                return Path.Combine(home, ".taut");
             }
         }
 
