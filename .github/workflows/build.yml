@@ -112,4 +112,11 @@ jobs:
       - name: Unggah ke Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+        run: |
+          # Tag bisa didorong sebelum Release-nya dibuat; siapkan kalau belum ada.
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" \
+              --title "Taut $GITHUB_REF_NAME" \
+              --generate-notes
+          fi
+          gh release upload "$GITHUB_REF_NAME" dist/* --clobber
