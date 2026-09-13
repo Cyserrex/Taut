@@ -90,9 +90,15 @@ function createPage() {
   const playButton = { click: () => calls.tombolPutar++ };
   let videoPresent = true;
 
+  // Player bar menyimpan mode ulangi dan acak sebagai atribut miliknya
+  // sendiri — persis seperti YouTube Music.
+  const barAttributes = { 'repeat-mode': 'NONE' };
+
   const playerBar = {
     querySelector: (selector) =>
       selector === '#play-pause-button' || selector === '.play-pause-button' ? playButton : null,
+    getAttribute: (name) => (name in barAttributes ? barAttributes[name] : null),
+    hasAttribute: (name) => name in barAttributes,
   };
 
   const document = {
@@ -142,6 +148,20 @@ function createPage() {
     /** Atur keadaan menurut pemutar YouTube, terlepas dari elemen <video>. */
     setPlayerState: (value) => {
       playerState = value;
+    },
+    /** Setel mode ulangi seperti YouTube Music menandainya. */
+    setRepeat: (mode) => {
+      barAttributes['repeat-mode'] = mode;
+    },
+    /** Nyalakan atau matikan acak, yang ditandai ada-tidaknya atribut. */
+    setShuffle: (on) => {
+      if (on) barAttributes['shuffle-on'] = '';
+      else delete barAttributes['shuffle-on'];
+    },
+    /** Hapus penanda mode, seperti kalau YouTube mengganti strukturnya. */
+    dropModeAttributes: () => {
+      delete barAttributes['repeat-mode'];
+      delete barAttributes['shuffle-on'];
     },
     /** Hilangkan elemen <video>, untuk menguji jalur cadangan. */
     hideVideo: () => {
@@ -289,6 +309,37 @@ check('keadaan yang dilaporkan mengikuti yang terdengar', () => {
 
   page.video.paused = true;
   assert.strictEqual(page.publishNow().playing, false);
+});
+
+check('mode ulangi dan acak ikut terbaca', () => {
+  const page = createPage();
+  page.inject();
+
+  assert.strictEqual(page.publishNow().repeat, 'none');
+  assert.strictEqual(page.publishNow().shuffle, false);
+
+  page.setRepeat('ALL');
+  assert.strictEqual(page.publishNow().repeat, 'all');
+
+  page.setRepeat('ONE');
+  assert.strictEqual(page.publishNow().repeat, 'one');
+
+  page.setShuffle(true);
+  const state = page.publishNow();
+  assert.strictEqual(state.shuffle, true);
+  assert.strictEqual(state.repeat, 'one', 'acak tidak boleh mengubah ulangi');
+});
+
+check('kalau penandanya hilang, keadaannya null — bukan tebakan', () => {
+  const page = createPage();
+  page.dropModeAttributes();
+  page.inject();
+
+  // Tombolnya tetap bisa ditekan; yang tidak ada hanya indikatornya. Jauh
+  // lebih baik daripada melaporkan "mati" padahal sebenarnya tidak tahu.
+  const state = page.publishNow();
+  assert.strictEqual(state.repeat, null);
+  assert.strictEqual(state.shuffle, null);
 });
 
 check('tanpa elemen <video>, tombol asli YouTube jadi cadangan', () => {

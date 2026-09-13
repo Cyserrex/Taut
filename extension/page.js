@@ -99,21 +99,39 @@
     return 'none';
   }
 
+  const REPEAT_MODES = { NONE: 'none', ALL: 'all', ONE: 'one' };
+
   /**
-   * Status acak dan ulangi hanya tersimpan di state internal YouTube Music.
-   * Kalau strukturnya berubah, kembalikan null — remote tetap bisa menekan
-   * tombolnya, hanya indikator aktif/tidaknya yang tidak muncul.
+   * Status acak dan ulangi.
+   *
+   * Dibaca dari atribut milik player bar YouTube Music sendiri:
+   * repeat-mode bernilai NONE, ALL, atau ONE, dan acak ditandai ada-tidaknya
+   * atribut shuffle-on. Keduanya tidak ikut berubah kalau bahasa antarmuka
+   * berganti — berbeda dengan judul tombolnya ("Repeat off" dan seterusnya),
+   * yang diterjemahkan.
+   *
+   * Sebelumnya yang dibaca store internal YouTube Music, tapi store itu sudah
+   * tidak ada lagi di player bar maupun ytmusic-app. Pembacaannya gagal diam-
+   * diam dan mengembalikan null, sehingga tombol di HP tetap bekerja tapi
+   * ikonnya tidak pernah ikut berubah. Store tetap dicoba sebagai cadangan,
+   * kalau-kalau ia kembali.
    */
   function readQueueModes() {
     try {
-      const store = playerBar()?.store || document.querySelector('ytmusic-app')?.store;
+      const bar = playerBar();
+
+      const attribute = bar?.getAttribute?.('repeat-mode');
+      if (attribute && REPEAT_MODES[attribute]) {
+        return { shuffle: Boolean(bar.hasAttribute?.('shuffle-on')), repeat: REPEAT_MODES[attribute] };
+      }
+
+      const store = bar?.store || document.querySelector('ytmusic-app')?.store;
       const queue = store?.getState?.()?.queue;
       if (!queue) return { shuffle: null, repeat: null };
 
-      const repeatMap = { NONE: 'none', ALL: 'all', ONE: 'one' };
       return {
         shuffle: typeof queue.shuffleEnabled === 'boolean' ? queue.shuffleEnabled : null,
-        repeat: repeatMap[queue.repeatMode] ?? null,
+        repeat: REPEAT_MODES[queue.repeatMode] ?? null,
       };
     } catch {
       return { shuffle: null, repeat: null };
