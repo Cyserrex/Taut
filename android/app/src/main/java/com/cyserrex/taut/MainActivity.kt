@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.Network
+import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -71,6 +72,16 @@ class MainActivity : AppCompatActivity() {
 
     private var networkWatch: ConnectivityManager.NetworkCallback? = null
 
+    /**
+     * Halaman galat bawaan WebView juga memicu onPageFinished. Tanpa penanda
+     * ini, "selesai dimuat" itu menyembunyikan kabar luring yang baru saja
+     * ditampilkan, dan yang tersisa di layar tinggal hitam.
+     */
+    private var pageFailed = false
+
+    /** Batas menunggu halaman termuat sebelum dianggap tidak terjangkau. */
+    private val loadTimeout = 10_000L
+
     private lateinit var nowPlaying: NowPlaying
 
     /**
@@ -101,7 +112,9 @@ class MainActivity : AppCompatActivity() {
         requestNotificationPermission()
 
         setUpWebView()
-        views.offlineRetry.setOnClickListener { recover() }
+        // Memuat ulang lebih dulu: kalau alamatnya ternyata sudah berpindah,
+        // kegagalannya sendiri yang akan memulai pencarian.
+        views.offlineRetry.setOnClickListener { loadRemote() }
         views.offlineForget.setOnClickListener {
             prefs.forget()
             startActivity(Intent(this, SetupActivity::class.java))
@@ -109,8 +122,72 @@ class MainActivity : AppCompatActivity() {
         }
 
         watchNetwork()
+        loadRemote()
+    }
+
+    // ------------------------------------------------------- memuat halaman
+
+    /**
+     * Muat halaman remote, dan katakan apa yang sedang terjadi selama menunggu.
+     *
+     * Dulu bagian ini hanya memanggil loadUrl lalu diam. Kalau PC tidak
+     * terjangkau — apalagi kalau HP punya data seluler, sehingga WebView
+     * menunggu sambungan TCP yang tidak akan pernah tersambung — layarnya
+     * hitam tanpa sepatah kata pun, kadang hampir semenit.
+     */
+    private fun loadRemote() {
+        clock.removeCallbacks(giveUpLoading)
+
+        if (!hasNetwork()) {
+            showOffline(
+                true,
+                getString(R.string.no_network),
+                busy = false,
+                hint = getString(R.string.no_network_hint),
+            )
+            return
+        }
+
+        pageFailed = false
         lastReportAt = SystemClock.elapsedRealtime()
+        showOffline(true, getString(R.string.connecting), busy = true)
+
         views.web.loadUrl(prefs.remoteUrl)
+        clock.postDelayed(giveUpLoading, loadTimeout)
+    }
+
+    /**
+     * Sudah terlalu lama menunggu.
+     *
+     * WebView tidak selalu melaporkan kegagalan: sambungan yang menggantung
+     * baru menyerah setelah puluhan detik. Daripada menunggu sampai ia
+     * berkenan, Taut yang memutuskan.
+     */
+    private val giveUpLoading = Runnable {
+        if (isFinishing || !this::views.isInitialized) return@Runnable
+        pageFailed = true
+        views.web.stopLoading()
+        recover()
+    }
+
+    /**
+     * Apakah HP punya jaringan sama sekali.
+     *
+     * Kalau tidak ada, memuat halaman hanya membuang waktu — lebih baik
+     * langsung bilang apa adanya. Saat layanan ini tidak bisa ditanya,
+     * jawabannya "ada", supaya keraguan tidak sampai menghalangi.
+     */
+    private fun hasNetwork(): Boolean {
+        val manager = getSystemService(ConnectivityManager::class.java) ?: return true
+        val network = manager.activeNetwork ?: return false
+        val caps = manager.getNetworkCapabilities(network) ?: return false
+
+        // WiFi tanpa internet tetap berguna di sini: PC-nya ada di jaringan
+        // itu. Yang ditanya keberadaan jalurnya, bukan sampai ke internet.
+        return caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) ||
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -127,6 +204,12 @@ class MainActivity : AppCompatActivity() {
 
         views.web.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
+                // Halaman galat bawaan WebView juga "selesai dimuat".
+                // Menyembunyikan kabar luring di sini berarti menggantinya
+                // dengan layar hitam.
+                if (pageFailed) return
+
+                clock.removeCallbacks(giveUpLoading)
                 showOffline(false)
             }
 
@@ -137,7 +220,11 @@ class MainActivity : AppCompatActivity() {
             ) {
                 // Hanya kegagalan halaman utama yang berarti PC-nya hilang;
                 // gambar sampul yang gagal dimuat bukan urusan kita.
-                if (request?.isForMainFrame == true) recover()
+                if (request?.isForMainFrame != true) return
+
+                pageFailed = true
+                clock.removeCallbacks(giveUpLoading)
+                recover()
             }
         }
     }
@@ -172,8 +259,7 @@ class MainActivity : AppCompatActivity() {
             prefs.updateAddress(match.host, match.port)
             prefs.serverName = match.name
             recovering = false
-            lastReportAt = SystemClock.elapsedRealtime()
-            views.web.loadUrl(prefs.remoteUrl)
+            loadRemote()
         }
     }
 
@@ -202,6 +288,10 @@ class MainActivity : AppCompatActivity() {
      */
     private fun probeIfSilent() {
         if (recovering || probing) return
+
+        // Tanpa jaringan, bertanya pun percuma — dan kabar "tidak bisa
+        // menghubungi PC" akan menutupi keterangan yang lebih tepat.
+        if (!hasNetwork()) return
 
         val now = SystemClock.elapsedRealtime()
         if (now < quietUntil) return
@@ -255,7 +345,11 @@ class MainActivity : AppCompatActivity() {
         // kegagalan itu terjadi di jaringan yang sudah tidak berlaku lagi.
         quietUntil = 0
 
-        if (views.offline.visibility == View.VISIBLE) recover() else probeIfSilent()
+        // Coba alamat yang tersimpan lebih dulu. Kalau ternyata sudah
+        // berpindah, kegagalannya sendiri yang memulai pencarian — dan itu
+        // juga berlaku untuk alamat yang dimasukkan manual, yang memang tidak
+        // pernah muncul lewat pencarian.
+        if (views.offline.visibility == View.VISIBLE) loadRemote() else probeIfSilent()
     }
 
     /**
@@ -270,11 +364,17 @@ class MainActivity : AppCompatActivity() {
         else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
-    private fun showOffline(visible: Boolean, title: String? = null, busy: Boolean = false) {
+    private fun showOffline(
+        visible: Boolean,
+        title: String? = null,
+        busy: Boolean = false,
+        hint: String? = null,
+    ) {
         views.offline.visibility = if (visible) View.VISIBLE else View.GONE
         if (!visible) return
 
         title?.let { views.offlineTitle.text = it }
+        views.offlineHint.text = hint ?: getString(R.string.lost_server_hint)
         views.offlineSpinner.visibility = if (busy) View.VISIBLE else View.GONE
         views.offlineHint.visibility = if (busy) View.GONE else View.VISIBLE
         views.offlineRetry.visibility = if (busy) View.GONE else View.VISIBLE
@@ -335,6 +435,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         clock.removeCallbacks(watchLink)
+        clock.removeCallbacks(giveUpLoading)
 
         networkWatch?.let { callback ->
             try {

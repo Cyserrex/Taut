@@ -21,6 +21,9 @@
     <string name="pin_wrong">PIN salah. Coba lihat lagi terminal di PC.</string>
     <string name="pin_cancel">Batal</string>
 
+    <string name="connecting">Menghubungkan ke PC…</string>
+    <string name="no_network">HP tidak tersambung ke jaringan</string>
+    <string name="no_network_hint">Nyalakan WiFi, lalu sambungkan ke jaringan yang sama dengan PC.</string>
     <string name="reconnecting">PC berpindah alamat, mencari ulang…</string>
     <string name="lost_server">Tidak bisa menghubungi PC</string>
     <string name="lost_server_hint">Pastikan Taut masih berjalan di PC dan HP berada di WiFi yang sama.</string>
