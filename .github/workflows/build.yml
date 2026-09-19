@@ -121,6 +121,12 @@ jobs:
           java-version: '17'
 
       - uses: android-actions/setup-android@v3
+        with:
+          # Daftarnya ditulis sendiri karena bawaan action ini memuat paket
+          # "tools", yang sudah dihapus Google dari repositori SDK. Dulu
+          # sdkmanager mengabaikannya; sekarang ia berhenti dengan galat dan
+          # seluruh pekerjaan APK ikut gagal.
+          packages: platform-tools
 
       - uses: gradle/actions/setup-gradle@v4
         with:
