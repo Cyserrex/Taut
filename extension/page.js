@@ -327,6 +327,56 @@
     refresh() {},
   };
 
+  /** Dialog baru saja dijawab; lagunya diperiksa di putaran berikutnya. */
+  let answered = false;
+
+  /**
+   * "Video paused. Continue watching?"
+   *
+   * YouTube menghentikan pemutaran setelah berjam-jam tanpa sentuhan, lalu
+   * bertanya apakah kita masih di sana. Untuk Taut pertanyaan itu selalu
+   * salah sasaran: kendalinya ada di HP, jadi tidak ada yang menyentuh
+   * halaman di PC justru ketika lagunya sedang benar-benar didengarkan.
+   *
+   * Yang dikerjakan di sini persis yang akan dikerjakan pemakainya sendiri:
+   * menekan tombol jawabannya, lalu memastikan lagunya jalan lagi.
+   *
+   * Tombolnya diambil dari [dialog-confirm], bukan dari tulisannya —
+   * tulisannya ikut bahasa antarmuka, penanda itu tidak.
+   */
+  function answerAreYouThere() {
+    const dialog = document.querySelector(
+      'ytmusic-you-there-renderer, yt-confirm-dialog-renderer'
+    );
+
+    if (dialog) {
+      const confirm =
+        dialog.querySelector('[dialog-confirm] button') ||
+        dialog.querySelector('button') ||
+        dialog.querySelector('[dialog-confirm]');
+
+      if (confirm) {
+        confirm.click();
+        answered = true;
+      }
+      return;
+    }
+
+    // Satu putaran setelah dijawab, dialognya sudah hilang. Sebagian versi
+    // melanjutkan sendiri; yang tidak, dilanjutkan di sini. Menyuruh memutar
+    // sesuatu yang sudah berjalan tidak mengubah apa pun.
+    if (!answered) return;
+    answered = false;
+
+    const element = video();
+    if (!element || readPlaying(element)) return;
+
+    const api = playerApi();
+    if (api?.playVideo) api.playVideo();
+    const started = element.play();
+    if (started?.catch) started.catch(() => {});
+  }
+
   // ------------------------------------------------------------- pengiriman
 
   const post = (payload) => window.postMessage({ channel: CHANNEL, ...payload }, location.origin);
@@ -378,6 +428,7 @@
   }
 
   const timer = setInterval(() => {
+    answerAreYouThere();
     watchVideo();
     publish();
   }, POLL_INTERVAL);

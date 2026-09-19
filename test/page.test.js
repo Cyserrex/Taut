@@ -33,7 +33,7 @@ function createPage() {
     nextVideo: 0, previousVideo: 0,
     playVideo: 0, pauseVideo: 0,       // pemutar YouTube
     elemenPutar: 0, elemenJeda: 0,     // elemen <video>
-    tombolPutar: 0,
+    tombolPutar: 0, tombolLanjut: 0,
   };
 
   /** Keadaan menurut YouTube Music sendiri: 1 berputar, 2 jeda. */
@@ -101,16 +101,40 @@ function createPage() {
     hasAttribute: (name) => name in barAttributes,
   };
 
+  /**
+   * Dialog "Video paused. Continue watching?".
+   *
+   * Bentuknya meniru template asli YouTube Music: tombol jawabannya berada
+   * di dalam elemen bertanda dialog-confirm.
+   */
+  let dialogShown = false;
+  const dialogButton = {
+    click: () => {
+      calls.tombolLanjut++
+      dialogShown = false
+      video.paused = true // dialognya memang menghentikan lagu
+    },
+  };
+  const youThere = {
+    querySelector: (selector) =>
+      selector === '[dialog-confirm] button' || selector === 'button' ? dialogButton : null,
+  };
+
   const document = {
     querySelector: (selector) => {
       if (selector === 'video') return videoPresent ? video : null;
       if (selector === 'ytmusic-player-bar') return playerBar;
+      if (selector.includes('you-there')) return dialogShown ? youThere : null;
       return playerBar.querySelector(selector);
     },
     getElementById: (id) => (id === 'movie_player' ? player : null),
   };
 
   let lastState = null;
+
+  /** Putaran poll page.js, dijalankan lewat page.tick(). */
+  const timers = new Map();
+  let nextTimer = 1;
 
   const window = {
     addEventListener: addEventListener('window'),
@@ -130,10 +154,16 @@ function createPage() {
     console,
     setTimeout,
     clearTimeout,
-    // Dilepas dari antrean Node, kalau tidak proses ujinya tidak pernah
-    // selesai: page.js memasang poll yang memang dirancang berjalan terus.
-    setInterval: (fn, ms) => setInterval(fn, ms).unref(),
-    clearInterval,
+    // Poll-nya tidak benar-benar dijalankan waktu. Uji yang menunggu detik
+    // berlalu itu lambat dan goyah; di sini putarannya dijalankan sesuai
+    // perintah lewat page.tick(). Sekalian membuat proses ujinya bisa
+    // selesai, karena poll page.js memang dirancang berjalan terus.
+    setInterval: (fn) => {
+      const id = nextTimer++;
+      timers.set(id, fn);
+      return id;
+    },
+    clearInterval: (id) => timers.delete(id),
     AbortController,
     JSON,
     Math,
@@ -162,6 +192,14 @@ function createPage() {
     dropModeAttributes: () => {
       delete barAttributes['repeat-mode'];
       delete barAttributes['shuffle-on'];
+    },
+    /** Munculkan dialog "masih di sana?" milik YouTube. */
+    showAreYouThere: () => {
+      dialogShown = true;
+    },
+    /** Jalankan satu putaran poll page.js. */
+    tick: () => {
+      for (const fn of timers.values()) fn();
     },
     /** Hilangkan elemen <video>, untuk menguji jalur cadangan. */
     hideVideo: () => {
@@ -340,6 +378,33 @@ check('kalau penandanya hilang, keadaannya null — bukan tebakan', () => {
   const state = page.publishNow();
   assert.strictEqual(state.repeat, null);
   assert.strictEqual(state.shuffle, null);
+});
+
+check('dialog "masih di sana?" dijawab sendiri', () => {
+  const page = createPage();
+  page.inject();
+
+  page.showAreYouThere();
+  page.tick();
+  assert.strictEqual(page.calls.tombolLanjut, 1, 'tombolnya ditekan');
+
+  // Dialognya menghentikan lagu. Putaran berikutnya yang menjalankannya lagi.
+  assert.strictEqual(page.video.paused, true);
+  page.tick();
+  assert.strictEqual(page.video.paused, false, 'lagunya dilanjutkan');
+  assert.strictEqual(page.calls.elemenPutar, 1);
+});
+
+check('tanpa dialog, tidak ada yang disentuh', () => {
+  const page = createPage();
+  page.inject();
+
+  page.video.paused = true; // pemakainya sendiri yang menjeda
+  page.tick();
+  page.tick();
+
+  assert.strictEqual(page.calls.tombolLanjut, 0);
+  assert.strictEqual(page.video.paused, true, 'jeda yang disengaja tidak diganggu');
 });
 
 check('tanpa elemen <video>, tombol asli YouTube jadi cadangan', () => {
