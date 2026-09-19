@@ -4,8 +4,13 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.Network
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
@@ -29,7 +34,7 @@ import org.json.JSONObject
  *
  *   · menemukan PC lagi sendiri ketika alamat IP-nya berpindah,
  *   · memakai tombol volume fisik HP untuk mengatur volume di PC,
- *   · menjaga layar tetap menyala selama remote terbuka.
+ *   · menjaga layar tetap menyala selama lagu berputar.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -41,6 +46,30 @@ class MainActivity : AppCompatActivity() {
 
     /** Menahan agar pencarian ulang tidak berjalan dua kali bersamaan. */
     private var recovering = false
+
+    /**
+     * Halaman remote melapor kira-kira sekali sedetik selama tersambung.
+     * Diam lebih lama dari ini berarti ada yang perlu diperiksa.
+     */
+    private val silenceBeforeProbe = 20_000L
+
+    /** Selang pemeriksaan. Yang mahal hanya probe, dan itu jarang terjadi. */
+    private val watchInterval = 5_000L
+
+    /** Jeda sebelum mencari lagi setelah pencarian sebelumnya gagal. */
+    private val pauseAfterFailure = 30_000L
+
+    private val clock = Handler(Looper.getMainLooper())
+
+    /** Kapan halaman remote terakhir melapor. */
+    private var lastReportAt = 0L
+
+    /** Tidak memeriksa apa pun sebelum waktu ini — dipakai setelah gagal. */
+    private var quietUntil = 0L
+
+    private var probing = false
+
+    private var networkWatch: ConnectivityManager.NetworkCallback? = null
 
     private lateinit var nowPlaying: NowPlaying
 
@@ -67,9 +96,6 @@ class MainActivity : AppCompatActivity() {
         views = ActivityMainBinding.inflate(layoutInflater)
         setContentView(views.root)
 
-        // Remote sering diletakkan di meja sambil dilihat sesekali.
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
         nowPlaying = NowPlaying(this) { command -> sendToRemote(command) }
         nowPlaying.start()
         requestNotificationPermission()
@@ -82,6 +108,8 @@ class MainActivity : AppCompatActivity() {
             finish()
         }
 
+        watchNetwork()
+        lastReportAt = SystemClock.elapsedRealtime()
         views.web.loadUrl(prefs.remoteUrl)
     }
 
@@ -132,6 +160,10 @@ class MainActivity : AppCompatActivity() {
             val match = servers.firstOrNull()
             if (match == null) {
                 recovering = false
+                // Jangan langsung mencari lagi: kalau PC-nya memang mati,
+                // mengulanginya tiap beberapa detik hanya membuat tampilan
+                // berkedip tanpa hasil.
+                quietUntil = SystemClock.elapsedRealtime() + pauseAfterFailure
                 showOffline(true, getString(R.string.lost_server), busy = false)
                 return@scan
             }
@@ -140,8 +172,102 @@ class MainActivity : AppCompatActivity() {
             prefs.updateAddress(match.host, match.port)
             prefs.serverName = match.name
             recovering = false
+            lastReportAt = SystemClock.elapsedRealtime()
             views.web.loadUrl(prefs.remoteUrl)
         }
+    }
+
+    // ------------------------------------------------ menjaga sambungan hidup
+
+    private val watchLink = object : Runnable {
+        override fun run() {
+            probeIfSilent()
+            clock.postDelayed(this, watchInterval)
+        }
+    }
+
+    /**
+     * Kalau halaman sudah lama diam, pastikan dulu PC-nya benar-benar hilang
+     * sebelum mengganggu tampilan.
+     *
+     * Halaman remote menyambung ulang sendiri, tapi selalu ke alamat yang sama
+     * — kalau router memberi PC alamat baru, ia akan mengetuk alamat lama itu
+     * selamanya dan tidak ada yang memulai pencarian. Di sinilah pencarian itu
+     * dimulai.
+     *
+     * Diamnya halaman saja belum cukup jadi alasan: kalau YouTube Music
+     * sekadar belum dibuka, halaman juga diam padahal PC-nya baik-baik saja.
+     * Karena itu ditanya dulu, dan memuat ulang hanya kalau memang tidak ada
+     * yang menjawab.
+     */
+    private fun probeIfSilent() {
+        if (recovering || probing) return
+
+        val now = SystemClock.elapsedRealtime()
+        if (now < quietUntil) return
+        if (now - lastReportAt < silenceBeforeProbe) return
+
+        val host = prefs.host ?: return
+        probing = true
+        Reachability.check(host, prefs.port) { alive ->
+            probing = false
+            if (isFinishing) return@check
+
+            if (alive) {
+                // Masih menjawab: berarti hanya YouTube Music yang belum
+                // dibuka. Dianggap saja baru melapor, supaya tidak ditanya
+                // berulang-ulang selama lagunya memang tidak diputar.
+                lastReportAt = SystemClock.elapsedRealtime()
+            } else {
+                recover()
+            }
+        }
+    }
+
+    /**
+     * Jaringan kembali — misalnya HP baru sampai rumah dan menyambung ke WiFi.
+     *
+     * Tanpa ini yang tersisa hanya percobaan ulang halaman remote ke alamat
+     * lama, dan menunggu giliran pemeriksaan berikutnya. Izin
+     * ACCESS_NETWORK_STATE di manifest memang untuk ini.
+     */
+    private fun watchNetwork() {
+        val manager = getSystemService(ConnectivityManager::class.java) ?: return
+
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                runOnUiThread { onNetworkBack() }
+            }
+        }
+
+        try {
+            manager.registerDefaultNetworkCallback(callback)
+            networkWatch = callback
+        } catch (_: Exception) {
+            // Tanpa pemberitahuan jaringan, pemeriksaan berkala tetap jalan.
+        }
+    }
+
+    private fun onNetworkBack() {
+        if (recovering || isFinishing || !this::views.isInitialized) return
+
+        // Jaringan yang baru datang membatalkan jeda kegagalan sebelumnya:
+        // kegagalan itu terjadi di jaringan yang sudah tidak berlaku lagi.
+        quietUntil = 0
+
+        if (views.offline.visibility == View.VISIBLE) recover() else probeIfSilent()
+    }
+
+    /**
+     * Layar ditahan hanya selama lagu berputar.
+     *
+     * Remote memang sering diletakkan di meja sambil dilihat sesekali, tapi
+     * menahannya juga saat musik berhenti berarti Taut yang tertinggal
+     * terbuka di saku akan menyalakan layar sampai baterai habis.
+     */
+    private fun keepScreenOn(on: Boolean) {
+        if (on) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     private fun showOffline(visible: Boolean, title: String? = null, busy: Boolean = false) {
@@ -186,7 +312,39 @@ class MainActivity : AppCompatActivity() {
 
     // ------------------------------------------------------------------ daur hidup
 
+    /**
+     * Pengawas berjalan hanya selama layar ini terlihat.
+     *
+     * Saat Taut di latar belakang, halaman remote tetap hidup dan kendali di
+     * layar kunci tetap bekerja; yang ditunda cuma pencarian ulang, dan itu
+     * langsung dikejar begitu layarnya dibuka lagi.
+     */
+    override fun onStart() {
+        super.onStart()
+        if (!this::views.isInitialized) return
+
+        // Beri halaman kesempatan melapor dulu sebelum dicurigai.
+        lastReportAt = SystemClock.elapsedRealtime()
+        clock.postDelayed(watchLink, watchInterval)
+    }
+
+    override fun onStop() {
+        clock.removeCallbacks(watchLink)
+        super.onStop()
+    }
+
     override fun onDestroy() {
+        clock.removeCallbacks(watchLink)
+
+        networkWatch?.let { callback ->
+            try {
+                getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(callback)
+            } catch (_: Exception) {
+                // Sudah dilepas sistem.
+            }
+        }
+        networkWatch = null
+
         if (this::nowPlaying.isInitialized) nowPlaying.release()
 
         // Kalau perangkat belum dipasangkan, onCreate keluar lebih awal dan
@@ -209,6 +367,9 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 try {
                     val state = JSONObject(json)
+                    lastReportAt = SystemClock.elapsedRealtime()
+                    quietUntil = 0
+                    keepScreenOn(state.optBoolean("playing", false))
                     nowPlaying.update(
                         title = state.optString("title", "Taut"),
                         artist = state.optString("artist", ""),
@@ -225,7 +386,10 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun onDisconnected() {
-            runOnUiThread { nowPlaying.clear() }
+            runOnUiThread {
+                keepScreenOn(false)
+                nowPlaying.clear()
+            }
         }
     }
 

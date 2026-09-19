@@ -2,7 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Hanya untuk berbicara dengan PC di jaringan lokal. Taut tidak
-         menghubungi server mana pun di internet. -->
+         menghubungi server mana pun di internet. Yang kedua dipakai untuk
+         tahu kapan jaringan kembali, supaya Taut bisa langsung mencari PC
+         lagi alih-alih menunggu. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
