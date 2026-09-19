@@ -327,6 +327,33 @@
     refresh() {},
   };
 
+  /**
+   * Cegah "Video paused. Continue watching?" muncul sejak awal.
+   *
+   * YouTube Music menghitung sendiri sudah berapa lama tidak ada aktivitas,
+   * dan bertanya begitu batasnya terlampaui. Menjawab dialognya memang
+   * menolong, tapi lagunya tetap senyap sesaat — lebih baik pertanyaannya
+   * tidak pernah muncul.
+   *
+   * Yang dipakai pencatat milik YouTube itu sendiri, bukan gerakan tetikus
+   * palsu: setTimestamp() adalah jalan yang sama yang ditempuh sentuhan
+   * sungguhan. Lebih sedikit yang ditebak, dan tidak ada yang dipalsukan.
+   *
+   * Hanya selama lagunya berputar. Kalau pemakainya menjeda lalu pergi,
+   * tidak ada alasan menahan sesi itu tetap hidup.
+   */
+  function keepSessionAwake() {
+    const element = video();
+    if (!element || !readPlaying(element)) return;
+
+    try {
+      window.yt?.util?.activity?.setTimestamp?.();
+    } catch {
+      // Jalurnya berubah. Dialognya masih dijawab di answerAreYouThere —
+      // itulah gunanya keduanya ada.
+    }
+  }
+
   /** Dialog baru saja dijawab; lagunya diperiksa di putaran berikutnya. */
   let answered = false;
 
@@ -428,6 +455,7 @@
   }
 
   const timer = setInterval(() => {
+    keepSessionAwake();
     answerAreYouThere();
     watchVideo();
     publish();

@@ -33,7 +33,7 @@ function createPage() {
     nextVideo: 0, previousVideo: 0,
     playVideo: 0, pauseVideo: 0,       // pemutar YouTube
     elemenPutar: 0, elemenJeda: 0,     // elemen <video>
-    tombolPutar: 0, tombolLanjut: 0,
+    tombolPutar: 0, tombolLanjut: 0, tetapAktif: 0,
   };
 
   /** Keadaan menurut YouTube Music sendiri: 1 berputar, 2 jeda. */
@@ -136,8 +136,20 @@ function createPage() {
   const timers = new Map();
   let nextTimer = 1;
 
+  /**
+   * Pencatat aktivitas milik YouTube Music.
+   *
+   * Inilah yang dipakai YouTube untuk memutuskan apakah masih ada orang di
+   * sini. Bisa dihilangkan lewat page.dropActivityApi() untuk memastikan
+   * page.js tidak jatuh kalau suatu hari jalurnya berubah.
+   */
+  let activityApi = { util: { activity: { setTimestamp: () => calls.tetapAktif++ } } };
+
   const window = {
     addEventListener: addEventListener('window'),
+    get yt() {
+      return activityApi;
+    },
     postMessage: (message) => {
       if (message?.type === 'state') lastState = message.state;
     },
@@ -192,6 +204,10 @@ function createPage() {
     dropModeAttributes: () => {
       delete barAttributes['repeat-mode'];
       delete barAttributes['shuffle-on'];
+    },
+    /** Hilangkan pencatat aktivitas, seperti kalau YouTube mengubahnya. */
+    dropActivityApi: () => {
+      activityApi = undefined;
     },
     /** Munculkan dialog "masih di sana?" milik YouTube. */
     showAreYouThere: () => {
@@ -378,6 +394,39 @@ check('kalau penandanya hilang, keadaannya null — bukan tebakan', () => {
   const state = page.publishNow();
   assert.strictEqual(state.repeat, null);
   assert.strictEqual(state.shuffle, null);
+});
+
+check('selama berputar, YouTube diberi tahu ada aktivitas', () => {
+  const page = createPage();
+  page.inject();
+
+  page.tick();
+  page.tick();
+  assert.strictEqual(page.calls.tetapAktif, 2, 'tiap putaran, selama lagunya jalan');
+});
+
+check('saat dijeda sendiri, sesi tidak ditahan hidup', () => {
+  const page = createPage();
+  page.inject();
+
+  // Pemakainya menjeda lalu pergi. Tidak ada alasan menahan sesinya.
+  page.video.paused = true;
+  page.tick();
+  page.tick();
+  assert.strictEqual(page.calls.tetapAktif, 0);
+});
+
+check('tanpa pencatat aktivitas, sisanya tetap jalan', () => {
+  const page = createPage();
+  page.dropActivityApi();
+  page.inject();
+
+  // Tidak boleh melempar, dan dialognya harus tetap dijawab — itulah
+  // gunanya pencegahan dan jawaban sama-sama ada.
+  page.showAreYouThere();
+  page.tick();
+  assert.strictEqual(page.calls.tombolLanjut, 1);
+  assert.strictEqual(page.calls.tetapAktif, 0);
 });
 
 check('dialog "masih di sana?" dijawab sendiri', () => {
