@@ -491,9 +491,40 @@ body {
   opacity: 0.7;
 }
 
+/* Tombol langkah dan angkanya satu kelompok, dengan jarak rapat, supaya
+   slider tetap mendapat sisa lebarnya. */
+.volume-fine {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.volume-step {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.16s var(--ease), background 0.2s var(--ease),
+    color 0.2s var(--ease);
+}
+
+.volume-step:active {
+  transform: scale(0.86);
+  background: var(--surface);
+  color: var(--text);
+}
+
 .volume-value {
-  width: 28px;
-  text-align: right;
+  width: 26px;
+  text-align: center;
   color: var(--text-faint);
   font-size: 12px;
   font-variant-numeric: tabular-nums;

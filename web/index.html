@@ -136,7 +136,17 @@
       </button>
       <input class="range range-volume" id="volume" type="range" min="0" max="100" value="70"
              aria-label="Volume">
-      <span class="volume-value" id="volumeValue">70</span>
+
+      <!-- Satu langkah sekali ketuk. Slider untuk perubahan besar, tombol ini
+           untuk menyetel angka terakhirnya — mengapit angkanya supaya jelas
+           apa yang sedang diubah. -->
+      <div class="volume-fine">
+        <button class="volume-step" id="volumeDown" type="button"
+                aria-label="Turunkan volume satu langkah">−</button>
+        <span class="volume-value" id="volumeValue">70</span>
+        <button class="volume-step" id="volumeUp" type="button"
+                aria-label="Naikkan volume satu langkah">+</button>
+      </div>
     </div>
 
     <!-- Volume Windows dan volume tab dua hal berbeda, dan keduanya berguna:

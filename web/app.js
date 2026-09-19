@@ -39,6 +39,8 @@ const ui = {
   mute: $('mute'),
   volume: $('volume'),
   volumeValue: $('volumeValue'),
+  volumeDown: $('volumeDown'),
+  volumeUp: $('volumeUp'),
   volumeScope: $('volumeScope'),
   volumeBox: document.querySelector('.volume'),
   sleep: $('sleep'),
@@ -412,6 +414,17 @@ ui.dislike.addEventListener('click', () => {
 
 ui.volumeScope.addEventListener('click', toggleVolumeScope);
 
+// Angkanya berubah tepat di sebelah jari, jadi tidak perlu diumumkan lagi.
+ui.volumeDown.addEventListener('click', () => {
+  buzz();
+  stepVolume(-1, false);
+});
+
+ui.volumeUp.addEventListener('click', () => {
+  buzz();
+  stepVolume(1, false);
+});
+
 ui.sleep.addEventListener('click', () => {
   buzz();
   ui.sleepOptions.hidden = !ui.sleepOptions.hidden;
@@ -458,6 +471,30 @@ ui.volume.addEventListener('input', () => {
 ui.volume.addEventListener('change', () => {
   sendVolume(Number(ui.volume.value) / 100);
 });
+
+/**
+ * Geser volume sebanyak beberapa langkah, lalu kirim.
+ *
+ * Dipakai bersama oleh tombol volume fisik HP dan tombol − / + di layar.
+ * Keduanya butuh hal yang sama — batas 0..100, tampilan yang ikut berubah,
+ * dan satu kiriman — yang berbeda hanya perlu-tidaknya diumumkan.
+ */
+function stepVolume(step, announce) {
+  if (!state) return false;
+
+  const next = Math.min(100, Math.max(0, Number(ui.volume.value) + Number(step)));
+  ui.volume.value = String(next);
+  ui.volumeValue.textContent = String(next);
+  paintRange(ui.volume);
+  ui.volumeBox.classList.toggle('is-muted', next === 0);
+
+  if (announce) {
+    const scope = usingSystemVolume() ? 'Windows' : 'tab';
+    toast(next === 0 ? `Volume ${scope} dibisukan` : `Volume ${scope} ${next}%`, 1200);
+  }
+
+  return sendVolume(next / 100);
+}
 
 function sendVolume(level) {
   return usingSystemVolume() ? send('systemVolume', level) : send('volume', level);
@@ -534,16 +571,9 @@ document.addEventListener('keydown', (event) => {
  */
 window.tautNative = {
   nudgeVolume(step) {
-    if (!state) return false;
-    const next = Math.min(100, Math.max(0, Number(ui.volume.value) + Number(step)));
-    ui.volume.value = String(next);
-    ui.volumeValue.textContent = String(next);
-    paintRange(ui.volume);
-    ui.volumeBox.classList.toggle('is-muted', next === 0);
-
-    const scope = usingSystemVolume() ? 'Windows' : 'tab';
-    toast(next === 0 ? `Volume ${scope} dibisukan` : `Volume ${scope} ${next}%`, 1200);
-    return sendVolume(next / 100);
+    // Tombol fisik HP: angkanya tidak selalu terlihat saat ditekan, jadi
+    // hasilnya diumumkan.
+    return stepVolume(step, true);
   },
 
   /** Aplikasi memakai ini untuk tahu apakah remote sudah benar-benar siap. */
