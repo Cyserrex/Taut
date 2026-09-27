@@ -23,6 +23,36 @@ object Pairing {
         data class Unreachable(val message: String) : Result
     }
 
+    /**
+     * Tanya PC apakah PIN diperlukan, sebelum menampilkan kolomnya.
+     *
+     * Dipakai untuk alamat yang dimasukkan manual — yang tidak lewat
+     * pencarian, jadi tidak membawa petunjuknya sendiri. Kalau tidak
+     * terjawab, anggap perlu.
+     */
+    fun needsPin(host: String, port: Int, onDone: (Boolean) -> Unit) {
+        Thread {
+            val needed = askNeedsPin(host, port)
+            Handler(Looper.getMainLooper()).post { onDone(needed) }
+        }.start()
+    }
+
+    private fun askNeedsPin(host: String, port: Int): Boolean {
+        var connection: HttpURLConnection? = null
+        return try {
+            connection = (URL("http://$host:$port/api/info").openConnection() as HttpURLConnection).apply {
+                connectTimeout = 3000
+                readTimeout = 3000
+            }
+            val body = connection.inputStream.bufferedReader().use { it.readText() }
+            JSONObject(body).optBoolean("pinRequired", true)
+        } catch (_: Exception) {
+            true
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
     fun pair(host: String, port: Int, pin: String, onDone: (Result) -> Unit) {
         Thread {
             val result = request(host, port, pin)

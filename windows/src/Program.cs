@@ -23,9 +23,14 @@ namespace Taut
             bool console = args.Contains("--console", StringComparer.OrdinalIgnoreCase);
             int port = ReadPort(args);
 
+            // Mode render hanya menggambar jendela ke berkas lalu keluar, tanpa
+            // ikon baki — sama seperti --console, ia boleh berjalan di samping
+            // Taut yang sedang dipakai.
+            bool rendering = args.Contains("--render", StringComparer.OrdinalIgnoreCase);
+
             bool isFirst;
             _onlyOne = new Mutex(true, "Global\\TautSingleInstance", out isFirst);
-            if (!isFirst && !console)
+            if (!isFirst && !console && !rendering)
             {
                 MessageBox.Show(
                     "Taut sudah berjalan. Lihat ikonnya di area notifikasi, dekat jam.",

@@ -199,6 +199,11 @@ const server = http.createServer(async (req, res) => {
       version: VERSION,
       hostConnected: hub.hosts.size > 0,
       remotes: hub.remotes.size,
+      // Izin tanpa PIN adalah fitur Taut.exe: ia diikat ke MAC router, dan
+      // server ini tidak punya cara andal membacanya di semua sistem operasi.
+      // Jadi di sini PIN selalu diminta, meski config menyebut sebaliknya —
+      // gagal dalam keadaan tertutup.
+      pinRequired: true,
     };
 
     // PIN dan token hanya untuk yang sudah berada di komputer ini. Server bisa

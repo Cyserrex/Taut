@@ -12,7 +12,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const CONFIG_DIR = path.join(os.homedir(), '.taut');
+// TAUT_HOME dipakai uji supaya tidak pernah menyentuh config milik pemakai.
+const CONFIG_DIR = process.env.TAUT_HOME || path.join(os.homedir(), '.taut');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
 let cachedToken = null;

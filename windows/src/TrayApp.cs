@@ -22,6 +22,7 @@ namespace Taut
         private readonly NotifyIcon _icon;
         private readonly ToolStripMenuItem _statusItem;
         private readonly ToolStripMenuItem _autostartItem;
+        private readonly ToolStripMenuItem _noPinItem;
 
         private QrWindow _qrWindow;
 
@@ -38,6 +39,9 @@ namespace Taut
             };
             _autostartItem.Click += (s, e) => ToggleAutostart();
 
+            _noPinItem = new ToolStripMenuItem("Izinkan HP tanpa PIN di jaringan ini");
+            _noPinItem.Click += (s, e) => ToggleNoPin();
+
             var menu = new ContextMenuStrip();
             menu.Items.Add(_statusItem);
             menu.Items.Add(new ToolStripSeparator());
@@ -52,7 +56,12 @@ namespace Taut
 
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(_autostartItem);
+            menu.Items.Add(_noPinItem);
             menu.Items.Add("Perbaiki izin firewall…", null, (s, e) => Firewall.Repair());
+
+            // Centangnya mencerminkan jaringan saat menu dibuka, bukan saat
+            // Taut dinyalakan: laptop bisa sudah berpindah WiFi sejak itu.
+            menu.Opening += (s, e) => RefreshNoPin();
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("Keluar", null, (s, e) => Quit());
 
@@ -246,6 +255,69 @@ namespace Taut
                 MessageBox.Show("Tidak bisa mengubah setelan ini.",
                     "Taut", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
+        }
+
+        // ---------------------------------------------------------- tanpa PIN
+
+        private void RefreshNoPin()
+        {
+            _noPinItem.Checked = !Config.PinRequiredOn(NetworkIdentity.CurrentCached());
+        }
+
+        /// <summary>
+        /// Nyalakan atau matikan pairing tanpa PIN untuk jaringan sekarang.
+        ///
+        /// Hanya satu jaringan yang diingat. Menyalakannya di tempat lain
+        /// memindahkan izinnya ke sana — bukan menambah, supaya tidak ada
+        /// daftar jaringan terlupa yang diam-diam masih terbuka.
+        /// </summary>
+        private void ToggleNoPin()
+        {
+            if (!Config.PinRequiredOn(NetworkIdentity.Current()))
+            {
+                if (!Config.SetNoPinNetwork(null))
+                {
+                    MessageBox.Show("Tidak bisa mengubah setelan ini.",
+                        "Taut", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                _icon.ShowBalloonTip(4000, "PIN kembali diminta",
+                    "HP baru harus memasukkan PIN untuk tersambung.", ToolTipIcon.Info);
+                return;
+            }
+
+            string network = NetworkIdentity.Current();
+            if (network == null)
+            {
+                // Tanpa tanda pengenal, izin ini tidak bisa diikat ke satu
+                // jaringan — dan izin yang berlaku di mana saja justru yang
+                // tidak boleh ada.
+                MessageBox.Show(
+                    "Taut tidak bisa mengenali jaringan ini, jadi tidak bisa mengizinkan HP tanpa PIN di sini.",
+                    "Taut", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var answer = MessageBox.Show(
+                "HP mana pun yang tersambung ke WiFi ini akan bisa mengendalikan Taut tanpa PIN — " +
+                "termasuk volume Windows.\n\n" +
+                "Izin ini hanya berlaku di jaringan ini. Di jaringan lain, PIN tetap diminta.\n\n" +
+                "Lanjutkan?",
+                "Izinkan tanpa PIN", MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button2);
+
+            if (answer != DialogResult.Yes) return;
+
+            if (!Config.SetNoPinNetwork(network))
+            {
+                MessageBox.Show("Tidak bisa mengubah setelan ini.",
+                    "Taut", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            _icon.ShowBalloonTip(4000, "Tanpa PIN di jaringan ini",
+                "HP di WiFi ini bisa langsung tersambung. Di jaringan lain, PIN tetap diminta.",
+                ToolTipIcon.Info);
         }
 
         private void Quit()

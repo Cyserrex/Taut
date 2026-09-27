@@ -27,6 +27,12 @@ object Discovery {
         val name: String,
         val port: Int,
         val version: String,
+        /**
+         * Petunjuk dari PC apakah kolom PIN perlu ditampilkan. Bawaannya
+         * true: PC versi lama tidak menyebutnya, dan melewati PIN yang
+         * ternyata dibutuhkan hanya membuat pairing gagal tanpa penjelasan.
+         */
+        val pinRequired: Boolean = true,
     )
 
     /**
@@ -91,6 +97,7 @@ object Discovery {
                 name = json.optString("name", "PC"),
                 port = json.optInt("port", Prefs.DEFAULT_PORT),
                 version = json.optString("version", "?"),
+                pinRequired = json.optBoolean("pinRequired", true),
             )
         } else {
             null

@@ -66,7 +66,8 @@ class SetupActivity : AppCompatActivity() {
     private fun addServerRow(server: Discovery.Server) {
         val row = ItemServerBinding.inflate(layoutInflater, views.serverList, false)
         row.serverName.text = server.name
-        row.serverAddress.text = "${server.host}:${server.port}  ·  Taut ${server.version}"
+        val access = if (server.pinRequired) "" else "  ·  tanpa PIN"
+        row.serverAddress.text = "${server.host}:${server.port}  ·  Taut ${server.version}$access"
         row.root.setOnClickListener { askForPin(server) }
         views.serverList.addView(row.root)
     }
@@ -85,12 +86,57 @@ class SetupActivity : AppCompatActivity() {
             return
         }
         val port = views.manualPort.text.toString().trim().toIntOrNull() ?: Prefs.DEFAULT_PORT
-        askForPin(Discovery.Server(host = host, name = host, port = port, version = "?"))
+
+        views.manualConnect.isEnabled = false
+        Pairing.needsPin(host, port) { needed ->
+            if (isFinishing) return@needsPin
+            views.manualConnect.isEnabled = true
+            askForPin(
+                Discovery.Server(host = host, name = host, port = port, version = "?", pinRequired = needed)
+            )
+        }
     }
 
     // ------------------------------------------------------------------- PIN
 
     private fun askForPin(server: Discovery.Server) {
+        if (server.pinRequired) showPinStep(server) else pairWithoutPin(server)
+    }
+
+    /**
+     * PC ini mengizinkan HP di jaringannya tersambung tanpa PIN.
+     *
+     * Petunjuknya bisa basi — izinnya baru dimatikan, atau PC baru berpindah
+     * WiFi — jadi kalau PC ternyata menolak, jalannya kembali ke kolom PIN.
+     * Satu percobaan kosong itu memang terhitung satu kali salah di PC, tapi
+     * batasnya lima.
+     */
+    private fun pairWithoutPin(server: Discovery.Server) {
+        views.serverList.removeAllViews()
+        views.emptyHint.visibility = View.GONE
+        views.scanningRow.visibility = View.VISIBLE
+        views.spinner.visibility = View.VISIBLE
+        views.scanStatus.text = getString(R.string.pairing_no_pin, server.name)
+        views.scanAgain.isEnabled = false
+
+        Pairing.pair(server.host, server.port, "") { result ->
+            if (isFinishing) return@pair
+            views.scanAgain.isEnabled = true
+
+            when (result) {
+                is Pairing.Result.Success -> {
+                    prefs.save(server, result.token)
+                    startActivity(Intent(this, MainActivity::class.java))
+                    finish()
+                }
+                is Pairing.Result.Unreachable ->
+                    showPinStep(server, "Tidak bisa menghubungi PC: ${result.message}")
+                else -> showPinStep(server, getString(R.string.pin_needed_after_all))
+            }
+        }
+    }
+
+    private fun showPinStep(server: Discovery.Server, error: String? = null) {
         pending = server
         views.scanSection.visibility = View.GONE
         views.pinSection.visibility = View.VISIBLE
@@ -98,6 +144,8 @@ class SetupActivity : AppCompatActivity() {
         views.pinError.visibility = View.GONE
         views.pinInput.setText("")
         views.pinInput.requestFocus()
+
+        error?.let { showPinError(it) }
     }
 
     private fun showScan() {

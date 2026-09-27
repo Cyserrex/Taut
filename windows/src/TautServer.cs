@@ -179,6 +179,15 @@ namespace Taut
                 return;
             }
 
+            // Izin tanpa PIN hanya berlaku di jaringan tempat ia dinyalakan.
+            // Jaringannya dibaca segar di sini, bukan dari cache: ini keputusan
+            // yang sesungguhnya, dan laptop bisa saja baru berpindah WiFi.
+            if (!Config.PinRequiredOn(NetworkIdentity.Current()))
+            {
+                WritePaired(stream);
+                return;
+            }
+
             string pin = Json.GetString(request.Body, "pin");
             var result = Config.CheckPin(pin);
 
@@ -194,6 +203,11 @@ namespace Taut
                 return;
             }
 
+            WritePaired(stream);
+        }
+
+        private void WritePaired(NetworkStream stream)
+        {
             WriteJson(stream, 200,
                 "{\"token\":" + Json.String(Config.Token) +
                 ",\"name\":\"Taut\",\"version\":" + Json.String(Version) + "}");
@@ -206,9 +220,15 @@ namespace Taut
             sb.Append(",\"hostConnected\":").Append(Json.Bool(_hub.HostCount > 0));
             sb.Append(",\"remotes\":").Append(_hub.RemoteCount);
 
+            // Sekadar petunjuk untuk aplikasi, supaya tidak menampilkan kolom
+            // PIN yang tidak dibutuhkan. Yang menentukan tetap /api/pair.
+            string network = NetworkIdentity.CurrentCached();
+            sb.Append(",\"pinRequired\":").Append(Json.Bool(Config.PinRequiredOn(network)));
+
             // PIN dan token hanya untuk yang sudah berada di komputer ini.
             if (trusted)
             {
+                sb.Append(",\"network\":").Append(network == null ? "null" : Json.String(network));
                 sb.Append(",\"pin\":").Append(Json.String(Config.Pin));
                 sb.Append(",\"token\":").Append(Json.String(Config.Token));
                 sb.Append(",\"port\":").Append(_port);

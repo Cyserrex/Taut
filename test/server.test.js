@@ -13,6 +13,7 @@ const assert = require('assert');
 const crypto = require('crypto');
 const http = require('http');
 const dgram = require('dgram');
+const fs = require('fs');
 const os = require('os');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -121,13 +122,13 @@ function openClient(query) {
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function postJson(pathname, payload) {
+function postJson(pathname, payload, port = PORT) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify(payload);
     const req = http.request(
       {
         host: '127.0.0.1',
-        port: PORT,
+        port,
         path: pathname,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
@@ -153,16 +154,161 @@ function lanAddress() {
   return null;
 }
 
-function fetchJson(pathname, host = '127.0.0.1') {
+function fetchJson(pathname, host = '127.0.0.1', port = PORT) {
   return new Promise((resolve, reject) => {
     http
-      .get({ host, port: PORT, path: pathname }, (res) => {
+      .get({ host, port, path: pathname }, (res) => {
         let body = '';
         res.on('data', (c) => (body += c));
         res.on('end', () => resolve({ status: res.statusCode, body }));
       })
       .on('error', reject);
   });
+}
+
+// -------------------------------------------------------- pairing tanpa PIN
+
+/** Tanyakan penemuan ke satu port, kembalikan jawaban pertama atau null. */
+async function discoverOn(port) {
+  const socket = dgram.createSocket('udp4');
+  const replies = [];
+  socket.on('message', (raw) => {
+    try {
+      replies.push(JSON.parse(raw.toString('utf8')));
+    } catch {
+      /* bukan jawaban Taut */
+    }
+  });
+  await new Promise((done) => socket.bind(done));
+  socket.send('TAUT-DISCOVER', port, '127.0.0.1');
+  await wait(600);
+  socket.close();
+  return replies[0] || null;
+}
+
+/**
+ * Pairing tanpa PIN, di server kedua dengan config sementara.
+ *
+ * Sengaja terpisah dari server utama uji ini. Yang dinyalakan di sini adalah
+ * izin yang menurunkan keamanan, dan kalau ujinya jatuh di tengah jalan, izin
+ * itu tidak boleh tertinggal di config milik pemakai. TAUT_HOME membuat kedua
+ * implementasi menulis ke folder sementara yang dihapus di akhir.
+ */
+async function checkPairWithoutPin(command, baseArgs, useExe) {
+  const port = PORT + 1;
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'taut-uji-'));
+  const configFile = path.join(home, 'config.json');
+
+  const readConfig = () => JSON.parse(fs.readFileSync(configFile, 'utf8'));
+  const writeConfig = (data) => fs.writeFileSync(configFile, JSON.stringify(data, null, 2));
+
+  // Diisi sebelum server menyala: jaringan asing yang tidak mengizinkan apa
+  // pun, tapi harus tetap ada setelah server menulis token barunya.
+  const FOREIGN = '00-11-22-33-44-55';
+  writeConfig({ noPinNetwork: FOREIGN });
+
+  const child = spawn(command, baseArgs.concat(['--port', String(port)]), {
+    cwd: ROOT,
+    stdio: 'ignore',
+    env: { ...process.env, TAUT_HOME: home },
+  });
+
+  const info = async () => JSON.parse((await fetchJson('/api/info', '127.0.0.1', port)).body);
+  const pairBlank = () => postJson('/api/pair', {}, port);
+  let passed = 0;
+
+  try {
+    for (let i = 0; i < 60; i++) {
+      try {
+        await fetchJson('/api/info', '127.0.0.1', port);
+        break;
+      } catch {
+        await wait(100);
+      }
+    }
+
+    const first = await info();
+
+    // --- menulis token tidak menghapus kunci lain
+    //     (dulu Taut.exe menimpa berkasnya utuh, dan izin ini akan lenyap)
+    {
+      const stored = readConfig();
+      assert.ok(stored.token && stored.token.length >= 16, 'server membuat token baru');
+      assert.strictEqual(stored.noPinNetwork, FOREIGN, 'kunci lain di config tidak boleh terhapus');
+      passed++;
+    }
+
+    // --- bawaannya: PIN diminta
+    {
+      assert.strictEqual(first.pinRequired, true, 'bawaannya PIN diminta');
+      assert.strictEqual((await pairBlank()).status, 401, 'tanpa PIN ditolak kalau belum diizinkan');
+      passed++;
+    }
+
+    if (!useExe) {
+      // --- server Node selalu meminta PIN, apa pun isi config-nya
+      writeConfig({ ...readConfig(), noPinNetwork: 'e8-4d-74-99-5d-81' });
+      assert.strictEqual((await info()).pinRequired, true, 'server Node tetap meminta PIN');
+      assert.strictEqual((await pairBlank()).status, 401, 'server Node tetap menolak tanpa PIN');
+      passed++;
+      return passed;
+    }
+
+    const network = first.network;
+    if (!network) {
+      console.log('  (pairing tanpa PIN dilewati: jaringan tidak bisa dikenali di lingkungan ini)');
+      return passed;
+    }
+
+    // --- diizinkan di jaringan ini: langsung dapat token
+    {
+      writeConfig({ ...readConfig(), noPinNetwork: network });
+      assert.strictEqual((await info()).pinRequired, false, 'petunjuknya: PIN tidak diminta');
+
+      const paired = await pairBlank();
+      assert.strictEqual(paired.status, 200, 'tanpa PIN diterima di jaringan yang diizinkan');
+      assert.strictEqual(
+        JSON.parse(paired.body).token,
+        readConfig().token,
+        'token yang diberikan adalah token sungguhan'
+      );
+      passed++;
+    }
+
+    // --- jawaban penemuan ikut memberi tahu, supaya aplikasi melewati kolom PIN
+    {
+      const reply = await discoverOn(port);
+      assert.ok(reply, 'penemuan menjawab');
+      assert.strictEqual(reply.pinRequired, false, 'penemuan menyebut PIN tidak diminta');
+      passed++;
+    }
+
+    // --- jaringan lain: PIN diminta lagi
+    {
+      writeConfig({ ...readConfig(), noPinNetwork: FOREIGN });
+      assert.strictEqual((await info()).pinRequired, true, 'di jaringan lain, PIN diminta lagi');
+      assert.strictEqual((await pairBlank()).status, 401, 'di jaringan lain, tanpa PIN ditolak');
+      passed++;
+    }
+
+    // --- dimatikan: PIN diminta lagi
+    {
+      const { noPinNetwork, ...rest } = readConfig();
+      writeConfig(rest);
+      assert.strictEqual((await pairBlank()).status, 401, 'setelah dimatikan, tanpa PIN ditolak');
+      passed++;
+    }
+
+    return passed;
+  } finally {
+    child.kill();
+    await wait(300);
+    try {
+      fs.rmSync(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    } catch {
+      /* folder sementara; sistem akan membersihkannya */
+    }
+  }
 }
 
 // ------------------------------------------------------------------ jalankan
@@ -181,9 +327,10 @@ async function main() {
       ? path.resolve(process.argv[exeIndex + 1])
       : path.join(ROOT, 'dist', 'Taut.exe');
 
-  const [command, commandArgs] = useExe
-    ? [exePath, ['--console', '--port', String(PORT)]]
-    : [process.execPath, ['server/index.js', '--port', String(PORT)]];
+  const [command, baseArgs] = useExe
+    ? [exePath, ['--console']]
+    : [process.execPath, ['server/index.js']];
+  const commandArgs = baseArgs.concat(['--port', String(PORT)]);
 
   const server = spawn(command, commandArgs, {
     cwd: ROOT,
@@ -427,6 +574,8 @@ async function main() {
       assert.strictEqual(stillAlive.status, 200, 'server harus tetap hidup');
       passed++;
     }
+
+    passed += await checkPairWithoutPin(command, baseArgs, useExe);
 
     console.log(`${useExe ? 'Taut.exe' : 'server'}: ${passed} pemeriksaan lulus`);
   } finally {

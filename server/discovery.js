@@ -38,6 +38,8 @@ function start({ port, version }) {
         name: os.hostname(),
         port,
         version,
+        // Lihat /api/info: server ini selalu meminta PIN.
+        pinRequired: true,
       }),
       'utf8'
     );

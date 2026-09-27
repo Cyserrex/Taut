@@ -27,6 +27,13 @@ namespace Taut
         {
             get
             {
+                // Dipakai uji supaya tidak pernah menyentuh config milik
+                // pemakai — terutama saat yang diuji adalah izin tanpa PIN,
+                // yang tidak boleh tertinggal menyala kalau ujinya gagal di
+                // tengah jalan.
+                string overridden = Environment.GetEnvironmentVariable("TAUT_HOME");
+                if (!string.IsNullOrEmpty(overridden)) return overridden;
+
                 // USERPROFILE didahulukan supaya jalurnya sama persis dengan
                 // yang dipakai server Node (os.homedir). SpecialFolder.UserProfile
                 // bisa mengembalikan string kosong di konteks non-interaktif —
@@ -62,7 +69,7 @@ namespace Taut
                 if (_token == null)
                 {
                     _token = RandomHex(8);
-                    WriteToken(_token);
+                    Save(_token, ReadNoPinNetwork());
                 }
                 return _token;
             }
@@ -85,7 +92,41 @@ namespace Taut
         public static void ResetToken()
         {
             _token = RandomHex(8);
-            WriteToken(_token);
+            Save(_token, ReadNoPinNetwork());
+        }
+
+        // -------------------------------------------------------- tanpa PIN
+
+        /// <summary>
+        /// Jaringan tempat HP boleh dipasangkan tanpa PIN, atau null.
+        ///
+        /// Dibaca ulang dari berkas setiap kali, bukan disimpan di memori:
+        /// sakelar di baki dan suntingan tangan langsung berlaku, dan uji bisa
+        /// mengubahnya tanpa menyalakan ulang server.
+        /// </summary>
+        public static string NoPinNetwork
+        {
+            get { return ReadNoPinNetwork(); }
+        }
+
+        /// <summary>Izinkan tanpa PIN di satu jaringan, atau matikan dengan null.</summary>
+        public static bool SetNoPinNetwork(string network)
+        {
+            return Save(Token, network);
+        }
+
+        /// <summary>
+        /// Apakah PIN diperlukan di jaringan tempat PC ini sekarang berada.
+        ///
+        /// Tanpa PIN hanya kalau keduanya diketahui dan sama persis. Jaringan
+        /// yang tidak bisa dikenali dianggap jaringan asing.
+        /// </summary>
+        public static bool PinRequiredOn(string currentNetwork)
+        {
+            string allowed = NoPinNetwork;
+            return string.IsNullOrEmpty(allowed) ||
+                   string.IsNullOrEmpty(currentNetwork) ||
+                   !string.Equals(allowed, currentNetwork, StringComparison.OrdinalIgnoreCase);
         }
 
         // ------------------------------------------------------------- pairing
@@ -153,20 +194,49 @@ namespace Taut
             }
         }
 
-        private static void WriteToken(string token)
+        private static string ReadNoPinNetwork()
+        {
+            try
+            {
+                if (!File.Exists(FilePath)) return null;
+                string value = Json.GetString(File.ReadAllText(FilePath, Encoding.UTF8), "noPinNetwork");
+                return string.IsNullOrEmpty(value) ? null : value;
+            }
+            catch
+            {
+                return null; // tidak terbaca berarti tidak diizinkan
+            }
+        }
+
+        /// <summary>
+        /// Tulis seluruh isi config.
+        ///
+        /// Dulu hanya token yang ditulis, dan berkasnya ditimpa utuh — kunci
+        /// lain apa pun ikut terhapus diam-diam. Sekarang setiap kunci yang
+        /// dikenal Taut selalu ditulis bersama.
+        /// </summary>
+        private static bool Save(string token, string noPinNetwork)
         {
             try
             {
                 System.IO.Directory.CreateDirectory(Directory);
-                File.WriteAllText(
-                    FilePath,
-                    "{\n  \"token\": \"" + Json.Escape(token) + "\"\n}\n",
-                    new UTF8Encoding(false));
+
+                var sb = new StringBuilder();
+                sb.Append("{\n  \"token\": \"").Append(Json.Escape(token)).Append("\"");
+                if (!string.IsNullOrEmpty(noPinNetwork))
+                {
+                    sb.Append(",\n  \"noPinNetwork\": \"").Append(Json.Escape(noPinNetwork)).Append("\"");
+                }
+                sb.Append("\n}\n");
+
+                File.WriteAllText(FilePath, sb.ToString(), new UTF8Encoding(false));
+                return true;
             }
             catch
             {
-                // Tidak bisa menyimpan: Taut tetap jalan, hanya tokennya
-                // berubah setiap kali dinyalakan.
+                // Tidak bisa menyimpan: Taut tetap jalan, hanya pengaturannya
+                // tidak bertahan.
+                return false;
             }
         }
 

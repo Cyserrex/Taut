@@ -89,7 +89,8 @@ namespace Taut
                 var reply = Encoding.UTF8.GetBytes(
                     "{\"app\":\"taut\",\"name\":" + Json.String(Environment.MachineName) +
                     ",\"port\":" + _port +
-                    ",\"version\":" + Json.String(_version) + "}");
+                    ",\"version\":" + Json.String(_version) +
+                    ",\"pinRequired\":" + Json.Bool(Config.PinRequiredOn(NetworkIdentity.CurrentCached())) + "}");
 
                 try { _socket.Send(reply, reply.Length, any); }
                 catch { /* penanya sudah pergi */ }

@@ -69,10 +69,9 @@ namespace Taut
                 AutoSize = true,
             };
 
-            var androidHint = new Label
+            _androidHint = new Label
             {
-                Text = "Buka aplikasi Taut di HP. PC ini muncul sendiri di\n" +
-                       "daftar. Ketuk, lalu masukkan PIN di bawah.",
+                Text = HintWithPin,
                 ForeColor = DimText,
                 Location = new Point(24, 46),
                 // Tinggi dilebihkan dari kebutuhan: teks Indonesia lebih panjang
@@ -152,16 +151,32 @@ namespace Taut
 
             Controls.AddRange(new Control[]
             {
-                heading, androidHint, _pin,
+                heading, _androidHint, _pin,
                 browserHeading, browserHint, _qr,
                 _address, copy, close,
             });
         }
 
+        private const string HintWithPin =
+            "Buka aplikasi Taut di HP. PC ini muncul sendiri di\n" +
+            "daftar. Ketuk, lalu masukkan PIN di bawah.";
+
+        private const string HintWithoutPin =
+            "Buka aplikasi Taut di HP. PC ini muncul sendiri di\n" +
+            "daftar. Ketuk saja \u2014 di jaringan ini PIN tidak diminta.";
+
+        private Label _androidHint;
+
         public void Refresh(string url, string pin, List<string> addresses)
         {
             _url = url;
+
+            // PIN tetap ditampilkan meski tidak diminta: kalau petunjuk di HP
+            // ternyata basi dan ia kembali meminta PIN, angkanya harus ada.
             _pin.Text = pin;
+            _androidHint.Text = Config.PinRequiredOn(NetworkIdentity.CurrentCached())
+                ? HintWithPin
+                : HintWithoutPin;
 
             _address.Text = addresses.Count > 0
                 ? addresses[0] + ":" + _server.Port

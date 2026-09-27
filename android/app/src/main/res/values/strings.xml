@@ -20,6 +20,8 @@
     <string name="pin_submit">Pasangkan</string>
     <string name="pin_wrong">PIN salah. Coba lihat lagi terminal di PC.</string>
     <string name="pin_cancel">Batal</string>
+    <string name="pairing_no_pin">Menyambungkan ke %1$s…</string>
+    <string name="pin_needed_after_all">PC ini ternyata meminta PIN. Lihat PIN di layar PC.</string>
 
     <string name="connecting">Menghubungkan ke PC…</string>
     <string name="no_network">HP tidak tersambung ke jaringan</string>
